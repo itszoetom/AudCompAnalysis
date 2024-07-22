@@ -4,6 +4,8 @@ import os
 import jaratoolbox
 from jaratoolbox import celldatabase, ephyscore, settings
 
+# Loading Data Calculating Spike Rate for Pure Tones and Amplitude Modulation Sounnds. Neurons from one mouuse, one day
+
 # Loads in dataframe for one mouse
 subject = 'feat004'
 studyName = '2022paspeech'
