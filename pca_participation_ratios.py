@@ -18,9 +18,6 @@ figSavePath = "/Users/zoetomlinson/Desktop/NeuroAI/Figures/"
 fontSizeLabels = 10
 databaseDir = os.path.join(settings.DATABASE_PATH, studyparams.STUDY_NAME)
 
-subject = "feat009"
-recordingDate = "2022-03-25"
-
 subject_list = ['feat004', 'feat005', 'feat006', 'feat007', 'feat008', 'feat009', 'feat010']
 recordingDate_list = {'feat004': ['2022-01-11', '2022-01-19', '2022-01-21'],
                       'feat005': ['2022-02-07', '2022-02-08', '2022-02-11', '2022-02-14', '2022-02-15', '2022-02-16'],
@@ -73,7 +70,7 @@ for subject in subject_list:
 
         fig, axes = plt.subplots(3, 3, figsize=(18, 12), sharey='row')
         fig.subplots_adjust(hspace=0.4, wspace=0.4)
-        fig.suptitle(f"Scree Plots for Auditory Areas and Sound Types for Mouse {subject} on {recordingDate}", fontsize=16)
+        fig.suptitle(f"Scree Plots for Auditory Areas and Sound Types for Mouse {subject} on {date}", fontsize=16)
 
         #%% Process Each Target Site
         for i, targetSiteName in enumerate(targetSiteNames):
@@ -83,7 +80,7 @@ for subject in subject_list:
 
             # Check if all subsets are empty
             if celldbSubsetSpeech.empty and celldbSubsetAM.empty and celldbSubsetPT.empty:
-                print(f"No data in {targetSiteName} on {recordingDate} for Speech, AM, and PT.")
+                print(f"No data in {targetSiteName} on {date} for Speech, AM, and PT.")
                 continue
 
             if not celldbSubsetSpeech.empty:
@@ -91,21 +88,21 @@ for subject in subject_list:
                 ensembleSpeech = ephyscore.CellEnsemble(celldbSubsetSpeech)
                 ephysDataSpeech, bdataSpeech = ensembleSpeech.load("FTVOTBorders")
             else:
-                print(f"No data in {targetSiteName} on {recordingDate} for Speech.")
+                print(f"No data in {targetSiteName} on {date} for Speech.")
 
             if not celldbSubsetAM.empty:
                 # Load AM data for the mouse
                 ensembleAM = ephyscore.CellEnsemble(celldbSubsetAM)
                 ephysDataAM, bdataAM = ensembleAM.load("AM")
             else:
-                print(f"No data in {targetSiteName} on {recordingDate} for AM.")
+                print(f"No data in {targetSiteName} on {date} for AM.")
 
             if not celldbSubsetPT.empty:
                 # Load PT data for the mouse
                 ensemblePT = ephyscore.CellEnsemble(celldbSubsetPT)
                 ephysDataPT, bdataPT = ensemblePT.load("pureTones")
             else:
-                print(f"No data in {targetSiteName} on {recordingDate} for PT.")
+                print(f"No data in {targetSiteName} on {date} for PT.")
 
         #%% AM and PT Start
             for sessionType in ["AM", 'pureTones']:
@@ -252,6 +249,6 @@ for subject in subject_list:
             ax.set_ylim(0, y_max)
             ax.grid(True, which='both', linestyle='--', linewidth=0.5)
 
-            extraplots.save_figure(f"scree_plots_{subject}_{recordingDate}_pca", 'png', [12.4, 10.8],
+            extraplots.save_figure(f"scree_plots_{subject}_{date}_pca", 'png', [12.4, 10.8],
                                    "/Users/zoetomlinson/Desktop/NeuroAI/Figures/All Scree Plots")
         plt.show()
