@@ -5,7 +5,7 @@
     <content url="file://$MODULE_DIR$/../jarainfo" />
     <content url="file://$MODULE_DIR$/../jarapubs/2022paspeech" />
     <content url="file://$MODULE_DIR$/../jaratoolbox" />
-    <orderEntry type="jdk" jdkName="JaraToolbox" jdkType="Python SDK" />
+    <orderEntry type="jdk" jdkName="Python 3.10 (venv)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
 </module>

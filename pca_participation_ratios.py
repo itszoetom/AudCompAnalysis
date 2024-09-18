@@ -32,8 +32,8 @@ leastCellsArea = 10000
 
 # Sets time ranges for AM and PT
 behavior_class = None
-baseline_start = -0.1
-baseline_end = 0.3
+#baseline_start = -0.1
+#baseline_end = 0.3
 evoked_start = 0.015
 evoked_end = 0.3
 binWidth = 0.01
@@ -45,6 +45,35 @@ allPeriodsSpeech = [[-0.2, 0], [0, 0.12], [0.12, 0.24]]  # try with shorter peri
 timeRangeSpeech = [allPeriodsSpeech[0][0], allPeriodsSpeech[-1][-1]]
 binSize = 0.005  # 5 ms spike time bins
 binEdges = np.arange(allPeriodsSpeech[1][0], allPeriodsSpeech[1][1], binSize)  # Using the onset time, so [0, 0.12]
+
+#fullDbPath = f'fulldb_speech_tuning.h5'
+#fullPath = os.path.join(databaseDir, fullDbPath)
+#fullDb = celldatabase.load_hdf(fullPath)
+
+dbPathSpeech = f'feat007_paspeech_speech_pval.h5'
+dbPathAM = f'feat007_paspeech_am_pval.h5'
+dbPathPT = f'feat007_paspeech_tones_pval.h5'
+
+# %% Loading data and initializing figure
+fullPathSpeech = os.path.join(databaseDir, dbPathSpeech)
+mouseDBSpeech = celldatabase.load_hdf(fullPathSpeech)
+simpleSiteNames = mouseDBSpeech["recordingSiteName"].str.split(',').apply(lambda x: x[0])
+mouseDBSpeech["recordingSiteName"] = simpleSiteNames
+
+fullPathAM = os.path.join(databaseDir, dbPathAM)
+mouseDBAM = celldatabase.load_hdf(fullPathAM)
+simpleSiteNames = mouseDBAM["recordingSiteName"].str.split(',').apply(lambda x: x[0])
+mouseDBAM["recordingSiteName"] = simpleSiteNames
+
+fullPathPT = os.path.join(databaseDir, dbPathPT)
+mouseDBPT = celldatabase.load_hdf(fullPathPT)
+simpleSiteNames = mouseDBPT["recordingSiteName"].str.split(',').apply(lambda x: x[0])
+mouseDBPT["recordingSiteName"] = simpleSiteNames
+
+celldbSubsetSpeech = mouseDBSpeech[(mouseDBSpeech.date == '2022-03-10') & (mouseDBSpeech.recordingSiteName == 'Primary auditory area')]
+celldbSubsetAM = mouseDBAM[(mouseDBAM.date == '2022-03-10') & (mouseDBAM.recordingSiteName == 'Primary auditory area')]
+celldbSubsetPT = mouseDBPT[(mouseDBPT.date == '2022-03-10') & (mouseDBPT.recordingSiteName == 'Primary auditory area')]
+
 
 for subject in subject_list:
     dbPathSpeech = f'{subject}_paspeech_speech_pval.h5'
@@ -250,5 +279,5 @@ for subject in subject_list:
             ax.grid(True, which='both', linestyle='--', linewidth=0.5)
 
             extraplots.save_figure(f"scree_plots_{subject}_{date}_pca", 'png', [12.4, 10.8],
-                                   "/Users/zoetomlinson/Desktop/NeuroAI/Figures/All Scree Plots")
+                                   "/Users/zoetomlinson/Desktop/NeuroAI/Figures/Singular Mouse Plots")
         plt.show()
