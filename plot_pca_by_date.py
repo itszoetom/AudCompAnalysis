@@ -1,3 +1,6 @@
+# Plots Scree Plots and Calculates Participation Ratio for each mouse - date combination.
+# 3x3 plots with each brain area - sound type combination
+
 #%% Imports
 import os
 import studyparams
@@ -279,5 +282,6 @@ for subject in subject_list:
             ax.grid(True, which='both', linestyle='--', linewidth=0.5)
 
             extraplots.save_figure(f"scree_plots_{subject}_{date}_pca", 'png', [12.4, 10.8],
-                                   "/Users/zoetomlinson/Desktop/NeuroAI/Figures/Singular Mouse Plots")
+                                   "/Users/zoetomlinson/Desktop/NeuroAI/Figures/Singular Mouse Plots/"
+                                   "date_pca_visualizations")
         plt.show()

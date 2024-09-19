@@ -1,3 +1,6 @@
+# Plots 2D PCA and Scree Plots for each mouse.
+# 3x3 plots with each brain area - sound type combination
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
