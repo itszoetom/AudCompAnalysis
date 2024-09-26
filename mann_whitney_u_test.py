@@ -47,7 +47,7 @@ unique_labels = [(0, 0), (0, 33), (0, 67), (0, 100), (33, 100), (67, 100), (100,
                  (100, 0), (67, 0), (33, 0)]
 min_speech_freq_dict = {(0, 0): 31, (0, 33): 29, (0, 67): 32, (0, 100): 24, (33, 100): 34, (67, 100): 35,
                         (100, 100): 33, (100, 67): 29, (100, 33): 35, (100, 0): 35, (67, 0): 31, (33, 0): 33}
-min_neuron_dict = {"Primary auditory area": 16, "Ventral auditory area": 9}
+min_neuron_dict = {"Primary auditory area": 9, "Ventral auditory area": 9}
 # Create arrays to hold participation ratios for each brain area and sound type combo
 primary_speech = []
 primary_am = []
@@ -437,7 +437,7 @@ def check_significance(p_value, comparison_type):
 
 
 # Statistical Comparison using Mann-Whitney-U test
-results_df = pd.DataFrame(columns=['Combo 1', 'Combo 2', 'P-value', 'Statistically Significant'])
+results = []
 arrays = {
     'Primary auditory area - speech': primary_speech,
     'Primary auditory area - AM': primary_am,
@@ -452,25 +452,35 @@ for i, combo1 in enumerate(combinations):
         if j <= i:
             continue  # Avoid duplicate comparisons
 
-        # Perform Mann-Whitney U test between the participation ratios of the two combos
-        stat, p_value = stats.mannwhitneyu(arrays[combo1], arrays[combo2], alternative='two-sided')
-
-        # Determine the type of comparison (brain area vs brain area, or sound type vs sound type)
+        # Determine if they share brain area or sound type
         combo1_parts = combo1.split(' - ')
         combo2_parts = combo2.split(' - ')
-        comparison_type = 'brain_area' if combo1_parts[0] != combo2_parts[0] else 'sound_type'
 
-        # Check if the result is statistically significant
+        # Check if they share the same brain area or sound type
+        same_brain_area = combo1_parts[0] == combo2_parts[0]
+        same_sound_type = combo1_parts[1] == combo2_parts[1]
+
+        # Only perform the Mann-Whitney U test if they share at least one category
+        if not (same_brain_area or same_sound_type):
+            continue
+
+        # Perform Mann-Whitney U test
+        stat, p_value = stats.mannwhitneyu(arrays[combo1], arrays[combo2], alternative='two-sided')
+
+        # Determine the type of comparison
+        comparison_type = 'brain_area' if not same_sound_type else 'sound_type'
+
+        # Check significance
         significant = check_significance(p_value, comparison_type)
 
-        # Append the result to the dataframe
-        results_df = results_df.append({
+        # Append results
+        results.append({
             'Combo 1': combo1,
             'Combo 2': combo2,
             'P-value': p_value,
             'Statistically Significant': significant
-        }, ignore_index=True)
+        })
 
+# Create DataFrame from results
+results_df = pd.DataFrame(results)
 print(results_df)
-
-
