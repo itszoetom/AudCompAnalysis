@@ -1,5 +1,4 @@
-# Plots 2D PCA and Scree Plots for each mouse.
-# 3x3 plots with each brain area - sound type combination
+# Plots Box and Whisker Plot for final visualization
 
 import numpy as np
 import pandas as pd
@@ -168,37 +167,12 @@ def sort_x_arrays(X_list, indices, sound_type):
     return sorted_x_list
 
 
-def calculate_participation_ratio_percent(explained_variance_ratio, n_neurons):
+def calculate_participation_ratio_(explained_variance_ratio):
     participation_ratio = ((np.sum(explained_variance_ratio)) ** 2) / np.sum(explained_variance_ratio ** 2)
-    participation_ratio_percent = participation_ratio / n_neurons
-    return participation_ratio_percent
+    # participation_ratio_percent = participation_ratio / n_neurons
+    return participation_ratio
 
 
-def plot_scree_plot(ax, data, title, particRatioPercent):
-    pca = PCA()
-    pca.fit(data)
-    explained_variance_ratio = pca.explained_variance_ratio_
-    y_max = np.max(explained_variance_ratio) * 1.1  # 10% padding
-
-    n_components = len(explained_variance_ratio)
-    x_max = min(n_components, 13)  # Limit x-axis to 13 components
-    x_min = 0
-
-    ax.bar(range(x_max), explained_variance_ratio[:x_max], color='black')
-    ax.set_xlabel('PCA features', fontsize=12)
-    ax.set_ylabel('Explained Variance Ratio', fontsize=12)
-    ax.set_title(title, fontsize=14)
-    ax.set_xticks(range(x_max))
-    ax.set_xlim(x_min, 13)  # Set x-axis limits from 0 to 13
-    ax.set_ylim(0, y_max)
-    ax.text(0.6, 0.85, f"Participation Ratio Percent = {particRatioPercent:.3f}",
-            horizontalalignment='center', verticalalignment='center',
-            fontsize=14, transform=ax.transAxes)
-    ax.grid(True, which='both', linestyle='--', linewidth=0.5)
-    return explained_variance_ratio
-
-
-# Function to randomly select neurons based on the min_neuron_dict
 def select_neurons(data, brain_area, min_neuron_dict):
     n_neurons_to_select = min_neuron_dict[brain_area]
     total_neurons = data.shape[1]
@@ -212,13 +186,6 @@ def select_neurons(data, brain_area, min_neuron_dict):
     return data
 
 
-def create_figure_grid(rows, cols, title, figsize=(18, 10)):
-    fig, axes = plt.subplots(rows, cols, figsize=figsize)
-    fig.suptitle(title, fontsize=16)
-    fig.subplots_adjust(hspace=0.4, wspace=0.4)
-    return fig, axes
-
-
 # Initialize a dictionary to store counts for each frequency across mouse-date combos
 frequency_counts_dict = {tuple(freq): [] for freq in unique_labels}
 
@@ -226,8 +193,6 @@ frequency_counts_dict = {tuple(freq): [] for freq in unique_labels}
 for subject in subject_list:
     # Create a 3x3 grid for 2D PCA subplots
     y_max = 0.17
-    fig_scree, axes_scree = create_figure_grid(2, 3, f'Scree Plots for Mouse {subject}')
-    fig_pca, axes_pca = create_figure_grid(2, 3, f'2D PCA Plots for Mouse {subject}')
 
     X_speech_all = []
     Y_brain_area_speech_all = []
@@ -376,35 +341,8 @@ for subject in subject_list:
             brain_area_array = np.array(Y_brain_area_all)
             X_array_adjusted = X_array[brain_area_array == brain_area]
             X_array_adjusted = X_array_adjusted.T
-            # X_array_adjusted = select_neurons(X_array_adjusted.T, brain_area, min_neuron_dict)
+            X_array_adjusted = select_neurons(X_array_adjusted.T, brain_area, min_neuron_dict)
             data_dict[(brain_area, sound_type)] = {'X': X_array_adjusted, 'Y': Y_frequency_sorted}
-
-    # Plot Scree plots for each combination
-    for i, brain_area in enumerate(["Primary auditory area", "Ventral auditory area"]):
-        for j, sound_type in enumerate(['speech', 'AM', 'PT']):
-            data = data_dict[(brain_area, sound_type)]
-            title = f'{brain_area} - {sound_type}, n = {data["X"].shape[1]}'
-
-            # Perform PCA and calculate participation ratio
-            scaler = StandardScaler()
-            if data['X'].shape[1] != 0:
-                data_standardized = scaler.fit_transform(data['X'])
-
-                pca = PCA()
-                pca.fit(data_standardized)
-                explained_variance_ratio = pca.explained_variance_ratio_
-                # particRatio = calculate_participation_ratio_(explained_variance_ratio)
-                n_neurons = data['X'].shape[0]  # Number of neurons
-                particRatioPercent = calculate_participation_ratio_percent(explained_variance_ratio, n_neurons)
-
-                # Plot the scree plot
-                plot_scree_plot(axes_scree[i, j], data_standardized, title, particRatioPercent)
-
-    # Save Scree plots figure
-    # fig_scree.show()
-    fig_scree.savefig(f"/Users/zoetomlinson/Desktop/NeuroAI/Figures/Singular Mouse Plots/mouse_pca_visualization/"
-                      f"particRatioPercent scree plots all neurons/"
-                      f"{subject} Scree Plot.png")
 
     for i, brain_area in enumerate(["Primary auditory area", "Ventral auditory area"]):
         for j, sound_type in enumerate(['speech', 'AM', 'PT']):
@@ -416,75 +354,49 @@ for subject in subject_list:
             pca = PCA()
             pca.fit(data_standardized)
             explained_variance_ratio = pca.explained_variance_ratio_
-            # particRatio = calculate_participation_ratio_(explained_variance_ratio)
-            n_neurons = data['X'].shape[0]  # Number of neurons
-            particRatioPercent = calculate_participation_ratio_percent(explained_variance_ratio, n_neurons)
+            particRatio = calculate_participation_ratio_(explained_variance_ratio)
+            n_neurons = data['X'].shape[1]  # Number of neurons
+            # particRatioPercent = calculate_participation_ratio_percent(explained_variance_ratio, n_neurons)
 
             if i == 0 and j == 0:
-                primary_speech.append(particRatioPercent)
+                primary_speech.append(particRatio)
             if i == 0 and j == 1:
-                primary_am.append(particRatioPercent)
+                primary_am.append(particRatio)
             if i == 0 and j == 2:
-                primary_pt.append(particRatioPercent)
+                primary_pt.append(particRatio)
             if i == 1 and j == 0:
-                ventral_speech.append(particRatioPercent)
+                ventral_speech.append(particRatio)
             if i == 1 and j == 1:
-                ventral_am.append(particRatioPercent)
+                ventral_am.append(particRatio)
             if i == 1 and j == 2:
-                ventral_pt.append(particRatioPercent)
+                ventral_pt.append(particRatio)
 
 
-# Function to check statistical significance based on brain area or sound type
-def check_significance(p_value, comparison_type):
-    if comparison_type == 'brain_area':
-        return p_value < 0.05
-    elif comparison_type == 'sound_type':
-        return p_value < 0.01667
+def box_and_whisker_plot(speech_array, am_array, pt_array, brain_area, n_neurons):
+    # Define sound types
+    sound_types = ['Speech', 'AM', 'PT']
 
+    # Combine all arrays into a list for boxplot
+    data = [speech_array, am_array, pt_array]
 
-# Statistical Comparison using Mann-Whitney-U test
-results = []
-arrays = {
-    'Primary auditory area - speech': primary_speech,
-    'Primary auditory area - AM': primary_am,
-    'Primary auditory area - PT': primary_pt,
-    'Ventral auditory area - speech': ventral_speech,
-    'Ventral auditory area - AM': ventral_am,
-    'Ventral auditory area - PT': ventral_pt}
-combinations = list(arrays.keys())
+    # Create the boxplot
+    fig, ax = plt.subplots(figsize=(8, 6))
+    fig.suptitle(f'{brain_area} Box Plot for Sounds', fontsize=16)
 
-for i, combo1 in enumerate(combinations):
-    for j, combo2 in enumerate(combinations):
-        if j <= i:
-            continue  # Avoid duplicate comparisons
+    # Boxplot for speech, AM, and PT data
+    ax.boxplot(data, patch_artist=True, widths=0.6)
 
-        # Determine if they share brain area or sound type
-        combo1_parts = combo1.split(' - ')
-        combo2_parts = combo2.split(' - ')
-        same_brain_area = combo1_parts[0] == combo2_parts[0]
-        same_sound_type = combo1_parts[1] == combo2_parts[1]
+    # Set x-axis labels and titles
+    ax.set_xticks([1, 2, 3])
+    ax.set_xticklabels(sound_types)
+    ax.set_title('Participation Ratio Across Sound Types')
+    ax.set_xlabel('Sound Type')
+    ax.set_ylabel(f'Participation Ratio - n = {n_neurons}')
 
-        # Only perform the Mann-Whitney U test if they share at least one category
-        if not (same_brain_area or same_sound_type):
-            continue
+    plt.tight_layout()
+    plt.show()
+    plt.savefig(f"/Users/zoetomlinson/Desktop/NeuroAI/Figures/Population Plots/Box Plots/"
+                f"{brain_area} Box Plot for {n_neurons}")
 
-        # Perform Mann-Whitney U test
-        stat, p_value = stats.mannwhitneyu(arrays[combo1], arrays[combo2], alternative='two-sided')
-
-        # Determine the type of comparison
-        comparison_type = 'brain_area' if not same_sound_type else 'sound_type'
-
-        # Check significance
-        significant = check_significance(p_value, comparison_type)
-
-        # Append results
-        results.append({
-            'Combo 1': combo1,
-            'Combo 2': combo2,
-            'P-value': p_value,
-            'Statistically Significant': significant
-        })
-
-# Create DataFrame from results
-results_df = pd.DataFrame(results)
-print(results_df)
+box_and_whisker_plot(primary_speech, primary_am, primary_pt, "Primary auditory area", n_neurons)
+box_and_whisker_plot(ventral_speech, ventral_am, ventral_pt, "Ventral auditory area", n_neurons)

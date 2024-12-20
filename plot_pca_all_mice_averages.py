@@ -443,7 +443,8 @@ for i, brain_area in enumerate(targetSiteNames):
         # For 'speech' sound type, create a mapping of frequencies to numbers
         if sound_type == 'speech':
             Y_labels = [tuple(row) for row in data["Y"]]
-            unique_labels = sorted(list(set(Y_labels)))
+            unique_labels = [(0, 0), (0, 33), (0, 67), (0, 100), (33, 100), (67, 100), (100, 100), (100, 67), (100, 33),
+                             (100, 0), (67, 0), (33, 0)]
             label_to_number = {label: idx for idx, label in enumerate(unique_labels)}
             color_values = np.array([label_to_number[label] for label in Y_labels])
             plot_2d_pca(axes_pca[i, j], data, color_values, title)

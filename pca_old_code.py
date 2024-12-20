@@ -12,7 +12,7 @@ from scipy import stats, signal
 figSavePath = "/Users/zoetomlinson/Desktop/NeuroAI/Figures/"
 fontSizeLabels = 10
 databaseDir = os.path.join(settings.DATABASE_PATH, '2022paspeech')
-subject_list = ['feat004', 'feat005']#, 'feat006', 'feat007', 'feat008', 'feat009', 'feat010']
+subject_list = ['feat004', 'feat005']  # , 'feat006', 'feat007', 'feat008', 'feat009', 'feat010']
 recordingDate_list = {
     'feat004': ['2022-01-11', '2022-01-19', '2022-01-21'],
     'feat005': ['2022-02-07', '2022-02-08', '2022-02-11', '2022-02-14', '2022-02-15', '2022-02-16'],
@@ -97,7 +97,7 @@ for subject in subject_list:
 
             sumEvokedFR = spikeCounts.sum(axis=2)  # Sum across the bins so now dims are (nCells, nTrials)
             spikesPerSecEvoked = sumEvokedFR / (
-                        allPeriodsSpeech[1][1] - allPeriodsSpeech[1][0])  # Divide by time width to get per sec
+                    allPeriodsSpeech[1][1] - allPeriodsSpeech[1][0])  # Divide by time width to get per sec
 
             trialMeans = spikesPerSecEvoked.mean(axis=1)
 
@@ -175,6 +175,7 @@ for subject in subject_list:
             Y_brain_area_PT.extend([targetSiteName] * spike_ratePT.shape[0])
             Y_frequency_pureTones.extend([bdataPT['currentFreq'][i] for i in range(nTrials)])
 
+
 # %%
 def adjust_array_length(X_list, max_length):
     adjusted_X_list = []
@@ -242,6 +243,7 @@ def plot_scree_plot(ax, data, title, y_max, particRatio):
             horizontalalignment='center', verticalalignment='center',
             fontsize=9, transform=ax.transAxes)
     ax.grid(True, which='both', linestyle='--', linewidth=0.5)
+
 
 '''
 def get_max_y(data_dict):  # Determine the maximum y value across all data to ensure consistent y-axis limits
