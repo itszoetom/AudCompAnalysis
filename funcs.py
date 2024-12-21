@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 import os
 from jaratoolbox import celldatabase, settings, ephyscore
 from copy import deepcopy
+import pandas as pd
+from sklearn.decomposition import PCA
 
 # %% Constants
 subject_list = ['feat005', 'feat006', 'feat007', 'feat008', 'feat009']  # 'feat004', 'feat010'
@@ -317,3 +319,61 @@ def clean_and_concatenate(subject, recordingDate_list, targetSiteName, previous_
 
     return (X_speech_array, X_AM_array, X_PT_array, Y_brain_area_speech_all, Y_brain_area_AM_all, Y_brain_area_PT_all,
             Y_frequency_speech_sorted, Y_frequency_AM_sorted, Y_frequency_pureTones_sorted)
+
+def calculate_participation_ratio(explained_variance_ratio):
+    return ((np.sum(explained_variance_ratio)) ** 2) / np.sum(explained_variance_ratio ** 2)
+
+def plot_scree_plot(ax, data, title, y_max, particRatio):
+    pca = PCA()
+    pca.fit(data)
+    explained_variance_ratio = pca.explained_variance_ratio_
+
+    n_components = len(explained_variance_ratio)
+    x_max = min(n_components, 13)  # Limit x-axis to 13 components
+    x_min = 0
+
+    ax.bar(range(x_max), explained_variance_ratio[:x_max], color='black')
+    ax.set_xlabel('PCA features', fontsize=12)
+    ax.set_ylabel('Explained Variance Ratio', fontsize=12)
+    ax.set_title(title, fontsize=14)
+    ax.set_xticks(range(x_max))
+    ax.set_xlim(x_min, 13)  # Set x-axis limits from 0 to 13
+    ax.set_ylim(0, y_max)  # Set y-axis limits to be consistent
+    ax.text(0.6, 0.85, f"Participation Ratio = {particRatio:.3f}",
+            horizontalalignment='center', verticalalignment='center',
+            fontsize=14, transform=ax.transAxes)
+    ax.grid(True, which='both', linestyle='--', linewidth=0.5)
+
+
+from sklearn.decomposition import PCA
+import matplotlib.pyplot as plt
+
+
+def plot_2d_pca(ax, data, labels, title, cmap='viridis'):
+    """
+    Plots 2D PCA of the input data on the given axis.
+
+    Parameters:
+    - ax: Matplotlib axis object to plot on.
+    - data: Dictionary containing data['X'] (features) and optionally other keys.
+    - labels: Array-like, labels for coloring the data points.
+    - title: Title of the plot.
+    - cmap: Colormap for the scatter plot (default: 'viridis').
+
+    Returns:
+    - scatter: The scatter plot object for further customization if needed.
+    """
+    pca = PCA(n_components=2)
+    transformed_data = pca.fit_transform(data['X'])
+
+    explained_variance = pca.explained_variance_ratio_
+
+    scatter = ax.scatter(transformed_data[:, 0], transformed_data[:, 1], c=labels, cmap=cmap, s=32)
+
+    ax.set_title(title)
+    ax.set_xlabel(f'PCA 1 ({explained_variance[0] * 100:.2f}% variance)')
+    ax.set_ylabel(f'PCA 2 ({explained_variance[1] * 100:.2f}% variance)')
+    cbar = plt.colorbar(scatter, ax=ax, orientation='vertical')
+    cbar.set_label('Labels')
+
+    return scatter
