@@ -23,24 +23,18 @@ targetSiteNames = ["Primary auditory area", "Dorsal auditory area", "Ventral aud
 leastCellsArea = 10000
 evoked_start = 0.015
 evoked_end = 0.3
+pt_evoked_end = 0.1
 binWidth = 0.01
 binEdges = np.arange(evoked_start, evoked_end, binWidth)
+binEdgesPT = np.arange(evoked_start, pt_evoked_end, binWidth)
 periodsNameSpeech = ['base200', 'respOnset', 'respSustained']
-allPeriodsSpeech = [[-0.2, 0], [0, 0.12], [0.12, 0.24]]
-timeRangeSpeech = [allPeriodsSpeech[0][0], allPeriodsSpeech[-1][-1]]
-binSize = 0.005
-binEdgesSpeech = np.arange(allPeriodsSpeech[1][0], allPeriodsSpeech[1][1], binSize)
 max_trials = {'PT': 640, 'AM': 220, 'speech': 381}
 unique_labels = [(0, 0), (0, 33), (0, 67), (0, 100), (33, 100), (67, 100), (100, 100), (100, 67), (100, 33),
                  (100, 0), (67, 0), (33, 0)]
 min_speech_freq_dict = {(0, 0): 31, (0, 33): 29, (0, 67): 32, (0, 100): 24, (33, 100): 34, (67, 100): 35,
                         (100, 100): 33, (100, 67): 29, (100, 33): 35, (100, 0): 35, (67, 0): 31, (33, 0): 33}
-# Initialize a dictionary to store counts for each frequency across mouse-date combos
 frequency_counts_dict = {tuple(freq): [] for freq in unique_labels}
 data_dict = {}
-# previous_frequency_speech = None
-# previous_frequency_AM = None
-# previous_frequency_PT = None
 
 # %% Load dataframe
 databaseDir = os.path.join(settings.DATABASE_PATH, '2022paspeech')
@@ -73,10 +67,10 @@ def spike_rate(sound_type, ensemble, ephysData, bdata, targetSiteName):
 
     if sound_type == "speech":
         eventOnsetTimes = ephysData['events']['stimOn']
-        _, _, _ = ensemble.eventlocked_spiketimes(eventOnsetTimes, timeRangeSpeech)
+        _, _, _ = ensemble.eventlocked_spiketimes(eventOnsetTimes, [evoked_start, evoked_end])
         spikeCounts = ensemble.spiketimes_to_spikecounts(binEdges)
         sumEvokedFR = spikeCounts.sum(axis=2)
-        spikesPerSecEvoked = sumEvokedFR / (allPeriodsSpeech[1][1] - allPeriodsSpeech[1][0])
+        spikesPerSecEvoked = sumEvokedFR / (evoked_end - evoked_start)
 
         FTParamsEachTrial = bdata['targetFTpercent']
         VOTParamsEachTrial = bdata['targetVOTpercent']
@@ -85,13 +79,24 @@ def spike_rate(sound_type, ensemble, ephysData, bdata, targetSiteName):
         # Create and sort Y_frequency for speech
         Y_frequency = np.array([(FTParamsEachTrial[i], VOTParamsEachTrial[i]) for i in range(nTrials)])
 
-    elif sound_type in ["AM", "PT"]:
+    if sound_type == "AM":
         nTrials = len(bdata['currentFreq'])
         eventOnsetTimes = ephysData['events']['stimOn'][:nTrials]
         _, _, _ = ensemble.eventlocked_spiketimes(eventOnsetTimes, [evoked_start, evoked_end])
         spikeCounts = ensemble.spiketimes_to_spikecounts(binEdges)
         sumEvokedFR = spikeCounts.sum(axis=2)
         spikesPerSecEvoked = sumEvokedFR / (evoked_end - evoked_start)
+
+        # Create and sort Y_frequency for AM/PT
+        Y_frequency = np.array(bdata['currentFreq'])
+
+    if sound_type == "PT":
+        nTrials = len(bdata['currentFreq'])
+        eventOnsetTimes = ephysData['events']['stimOn'][:nTrials]
+        _, _, _ = ensemble.eventlocked_spiketimes(eventOnsetTimes, [evoked_start, pt_evoked_end])
+        spikeCounts = ensemble.spiketimes_to_spikecounts(binEdgesPT)
+        sumEvokedFR = spikeCounts.sum(axis=2)
+        spikesPerSecEvoked = sumEvokedFR / (evoked_end - pt_evoked_end)
 
         # Create and sort Y_frequency for AM/PT
         Y_frequency = np.array(bdata['currentFreq'])
@@ -343,10 +348,6 @@ def plot_scree_plot(ax, data, title, y_max, particRatio):
             horizontalalignment='center', verticalalignment='center',
             fontsize=14, transform=ax.transAxes)
     ax.grid(True, which='both', linestyle='--', linewidth=0.5)
-
-
-from sklearn.decomposition import PCA
-import matplotlib.pyplot as plt
 
 
 def plot_2d_pca(ax, data, labels, title, cmap='viridis'):
