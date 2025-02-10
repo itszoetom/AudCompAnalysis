@@ -60,7 +60,6 @@ def load_data(subject, date, targetSiteName, sound_type_load):
 
     return ensemble, ephysData, bdata
 
-
 # Calculate Spike Rate
 def spike_rate(sound_type, ensemble, ephysData, bdata, targetSiteName):
     X_array = []
