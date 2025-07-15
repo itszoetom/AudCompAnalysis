@@ -1,6 +1,5 @@
 # Plots 2D PCA and Scree Plots for all mice.
 # 3x3 plots with each brain area - sound type combination
-
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -8,17 +7,10 @@ from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 import os
 from copy import deepcopy
-
-import funcs
-import params
 from jaratoolbox import celldatabase, settings, spikesanalysis, ephyscore, behavioranalysis, extraplots
-from scipy import stats, signal
-
 # %% Constants
-fontSizeLabels = 10
 databaseDir = os.path.join(settings.DATABASE_PATH, '2024popanalysis')
 databaseDir2022 = os.path.join(settings.DATABASE_PATH, '2022paspeech')
-#TODO: dont just select the first 119, randomly select
 subject_list = ['feat004', 'feat005', 'feat006', 'feat007', 'feat008', 'feat009', 'feat010']
 recordingDate_list = {
     'feat001': ['2021-11-09', '2021-11-11', '2021-11-16', '2021-11-17', '2021-11-18', '2021-11-19'],
@@ -58,6 +50,7 @@ min_speech_freq_dict = {(0, 0): 31, (0, 33): 29, (0, 67): 32, (0, 100): 24, (33,
                         (100, 100): 33, (100, 67): 29, (100, 33): 35, (100, 0): 35, (67, 0): 31, (33, 0): 33}
 
 # %% Load dataframe
+databaseDir = os.path.join(settings.DATABASE_PATH, '2024popanalysis')
 fullDbPath = 'celldb_2024popanalysis.h5'
 fullPath = os.path.join(databaseDir, fullDbPath)
 fullDb = celldatabase.load_hdf(fullPath)
@@ -140,7 +133,7 @@ def spike_rate(sound_type, ensemble, ephysData, bdata, targetSiteName):
         Y_frequency = np.array(bdata['currentFreq'])
 
     trialMeans = spikesPerSecEvoked.mean(axis=1)
-    spikesPerSecEvokedNormalized = spikesPerSecEvoked.T - trialMeans  # why negative
+    spikesPerSecEvokedNormalized = spikesPerSecEvoked.T - trialMeans
     spikesPerSecEvokedNormalized = spikesPerSecEvokedNormalized.T
 
     if spikesPerSecEvokedNormalized.shape[1] > leastCellsArea:
@@ -410,6 +403,7 @@ for i, brain_area in enumerate(targetSiteNames):
         pca = PCA()
         pca.fit(data_standardized)
         explained_variance_ratio = pca.explained_variance_ratio_
+
         particRatio = calculate_participation_ratio(explained_variance_ratio)
 
         # Plot the scree plot
@@ -425,18 +419,20 @@ fig_pca.suptitle('2D PCA Plots for Different Brain Areas and Sound Types', fonts
 fig_pca.subplots_adjust(hspace=0.4, wspace=0.4)
 
 
-# Function to create a 2D PCA plot with color-coded points based on frequency
 def plot_2d_pca(ax, data, labels, title, cmap='viridis'):
-    pca = PCA(n_components=2)
-    transformed_data = pca.fit_transform(data['X'])
+    # Perform PCA and calculate participation ratio
+    scaler = StandardScaler()
+    data_standardized = scaler.fit_transform(data['X'])
 
-    # Extract explained variance ratios
-    explained_variance = pca.explained_variance_ratio_
+    pca = PCA()
+    transformed_data = pca.fit_transform(data_standardized)
+
+    explained_variance_ratio = pca.explained_variance_ratio_
 
     scatter = ax.scatter(transformed_data[:, 0], transformed_data[:, 1], c=labels, cmap=cmap, s=32)
     ax.set_title(title)
-    ax.set_xlabel(f'PCA 1 ({explained_variance[0]*100:.2f}% variance)')
-    ax.set_ylabel(f'PCA 2 ({explained_variance[1]*100:.2f}% variance)')
+    ax.set_xlabel(f'PCA 1 ({explained_variance_ratio[0] * 100:.2f}% variance)')
+    ax.set_ylabel(f'PCA 2 ({explained_variance_ratio[1] * 100:.2f}% variance)')
     plt.colorbar(scatter, ax=ax, orientation='vertical')
 
 
@@ -474,13 +470,16 @@ fig_pca_subset119.subplots_adjust(hspace=0.4, wspace=0.4)
 
 for i, brain_area in enumerate(["Primary auditory area", "Dorsal auditory area", "Ventral auditory area"]):
     for j, sound_type in enumerate(['speech', 'AM', 'PT']):
-        data = data_dict.get((brain_area, sound_type), None)
+        data = data_dict.get((brain_area, sound_type))
 
         if data is not None:
-            # Randomly select 111 neurons
-            selected_indices = np.random.choice(data['X'].shape[0], 111, replace=False)
-            data_111 = data[:, selected_indices]
-            data_neurons = {"X": data_111['X'], "Y": data_111["Y"]}
+            # Randomly select 111 neurons (columns)
+            selected_indices = np.random.choice(data['X'].shape[1], 111, replace=False)
+
+            # select columns
+            data_111_X = data['X'][:, selected_indices]
+
+            data_neurons = {"X": data_111_X, "Y": data['Y']}
 
             # Update the title to reflect the number of neurons being plotted
             title = f'{brain_area} - {sound_type}, n = {data_neurons["X"].shape[1]}'
@@ -491,7 +490,7 @@ for i, brain_area in enumerate(["Primary auditory area", "Dorsal auditory area",
                 unique_labels = [(0, 0), (0, 33), (0, 67), (0, 100), (33, 100), (67, 100), (100, 100),
                                  (100, 67), (100, 33), (100, 0), (67, 0), (33, 0)]
                 label_to_number = {label: idx for idx, label in enumerate(unique_labels)}
-                color_values = np.array([label_to_number[label] for label in Y_labels])
+                color_values = np.array([label_to_number.get(label, -1) for label in Y_labels])
                 plot_2d_pca(axes_pca[i, j], data_neurons, color_values, title)
 
             # For 'AM' sound type, directly use the 'Y' values
@@ -502,37 +501,38 @@ for i, brain_area in enumerate(["Primary auditory area", "Dorsal auditory area",
             elif sound_type == 'PT':
                 plot_2d_pca(axes_pca[i, j], data_neurons, np.log10(data_neurons["Y"]), title)
 
-# Save as pngs
+# Save as PNG
 fig_pca_subset119.savefig("/Users/zoetomlinson/Desktop/GitHub/neuronalDataResearch/Figures/Population Plots/2D_PCA_Subset111Neurons_Plots.png")
-fig_pca_subset119.show()
+plt.show()
 
 # Create a 3x3 grid for subplots
 fig_scree_subset119, axes_scree = plt.subplots(3, 3, figsize=(22, 16))
-fig_scree_subset119.suptitle('Scree Plots for Different Brain Areas and Sound Types - Subset to 119 neurons', fontsize=16)
+fig_scree_subset119.suptitle('Scree Plots for Different Brain Areas and Sound Types - Subset to 111 neurons', fontsize=16)
 fig_scree_subset119.subplots_adjust(hspace=0.4, wspace=0.4)
 
 # Plot Scree plots for each combination
 for i, brain_area in enumerate(["Primary auditory area", "Dorsal auditory area", "Ventral auditory area"]):
     for j, sound_type in enumerate(['speech', 'AM', 'PT']):
-        data = data_dict[(brain_area, sound_type)]
-        title = f'{brain_area} - {sound_type}, n = {min(data["X"].shape[0], 111)}'
+        data = data_dict.get((brain_area, sound_type))
+        if data is not None:
+            title = f'{brain_area} - {sound_type}, n = {min(data["X"].shape[1], 111)}'
 
-        # Randomly select 119 neurons
-        selected_indices = np.random.choice(data['X'], 111, replace=False)
-        X_first_119 = data[:, selected_indices]
+            # Randomly select 111 neurons
+            selected_indices = np.random.choice(data['X'].shape[1], 111, replace=False)
+            X_first_111 = data['X'][:, selected_indices]
 
-        # Perform PCA and calculate participation ratio
-        scaler = StandardScaler()
-        data_standardized = scaler.fit_transform(X_first_119)
+            # Perform PCA and calculate participation ratio
+            scaler = StandardScaler()
+            data_standardized = scaler.fit_transform(X_first_111)
 
-        pca = PCA()
-        pca.fit(data_standardized)
-        explained_variance_ratio = pca.explained_variance_ratio_
-        particRatio = calculate_participation_ratio(explained_variance_ratio)
+            pca = PCA()
+            pca.fit(data_standardized)
+            explained_variance_ratio = pca.explained_variance_ratio_
+            particRatio = calculate_participation_ratio(explained_variance_ratio)
 
-        # Plot the scree plot
-        plot_scree_plot(axes_scree[i, j], data_standardized, title, y_max, particRatio)
+            # Plot the scree plot
+            plot_scree_plot(axes_scree[i, j], data_standardized, title, y_max, particRatio)
 
 # Save Scree plots figure
-fig_scree_subset119.show()
+plt.show()
 fig_scree_subset119.savefig("/Users/zoetomlinson/Desktop/GitHub/neuronalDataResearch/Figures/Population Plots/PopScreePlots_Subset111Neurons.png")

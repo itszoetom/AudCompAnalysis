@@ -49,6 +49,7 @@ fullDbPath = 'fulldb_speech_tuning.h5'
 fullPath = os.path.join(databaseDir, fullDbPath)
 fullDb = celldatabase.load_hdf(fullPath)
 simpleSiteNames = fullDb["recordingSiteName"].str.split(',').apply(lambda x: x[0])
+simpleSiteNames = simpleSiteNames.replace("Posterior auditory area", "Dorsal auditory area")
 fullDb["recordingSiteName"] = simpleSiteNames
 
 # %% Initialize Data Arrays
@@ -410,7 +411,7 @@ for i, brain_area in enumerate(targetSiteNames):
 
 # Save Scree plots figure
 fig_scree.show()
-fig_scree.savefig("/Users/zoetomlinson/Desktop/NeuroAI/Figures/Population Plots/PopScreeAveragePlots.png")
+fig_scree.savefig("/Users/zoetomlinson/Desktop/GitHub/neuronalDataResearch/Figures/Population Plots/PopScreeAveragePlots.png")
 
 # Create a 3x3 grid for 2D PCA subplots
 fig_pca, axes_pca = plt.subplots(3, 3, figsize=(22, 16))
@@ -460,5 +461,5 @@ for i, brain_area in enumerate(targetSiteNames):
             plot_2d_pca(axes_pca[i, j], data, unique_pt_freqs, title)
 
 # Save as pngs
-fig_pca.savefig("/Users/zoetomlinson/Desktop/NeuroAI/Figures/Population Plots/2D_PCA_Average_Plots.png")
+fig_pca.savefig("/Users/zoetomlinson/Desktop/GitHub/neuronalDataResearch/Figures/Population Plots/2D_PCA_Average_Plots.png")
 plt.show()

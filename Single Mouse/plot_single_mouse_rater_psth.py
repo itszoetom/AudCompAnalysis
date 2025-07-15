@@ -2,144 +2,195 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 import jaratoolbox
-from jaratoolbox import celldatabase, ephyscore, behavioranalysis, extraplots
+from jaratoolbox import celldatabase, ephyscore, behavioranalysis, extraplots, spikesanalysis
 
-# Calculating firing rate and plotting Raster and PSTH Graphs. Individual neurons in a mouse on a certain day.
-
-# Loads in dataframe for one mouse
-oneMouseDf = jaratoolbox.celldatabase.generate_cell_database_from_subjects(["feat004"])
-sessionDate = '2022-01-11'
-probeDepth = 2318
+# Load dataframe for one mouse
+oneMouseDf = celldatabase.generate_cell_database_from_subjects(["feat005"])
+sessionDate = '2022-02-07'
+probeDepth = 3020
 oneMouseDf = oneMouseDf[(oneMouseDf.date == sessionDate) & (oneMouseDf.pdepth == probeDepth)]
 
+# Define color palette
+custom_colors = np.array([
+    '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f',
+    '#bcbd22', '#17becf', '#aec7e8', '#ffbb78', '#98df8a', '#ff9896', '#c5b0d5', '#c49c94',
+    '#f7b6d2', '#c7c7c7', '#dbdb8d', '#9edae5'])
 
-# Selects one cell/neuron and loads it
-for cell_index in range(0, 109):  # max 204
+session_types = ["pureTones", "AM", "FTVOTBorders"]
+binWidth = 0.01
+
+# Loop over individual cells
+for cell_index in range(20, 35):
     one_cell_info = oneMouseDf.iloc[cell_index]
-    one_cell = jaratoolbox.ephyscore.Cell(one_cell_info)
+    one_cell = ephyscore.Cell(one_cell_info)
 
-    session_types = ["pureTones", "AM"]
+    fig, axs = plt.subplots(2, 4, figsize=(20, 6))
     behavior_class = None
 
-    fig, axs = plt.subplots(2, 2, figsize=(10, 8))  # Adjust the figsize as needed
+    # We want 4 columns: pureTones, AM, FT, VOT
+    # Define session types for iteration, splitting FTVOTBorders into two
+    plot_session_types = ["pureTones", "AM", "FT", "VOT"]
 
-    # Loads the ephys and behavior data for that cell
-    for i, session_type in enumerate(session_types):
-        ephy_data, behavior_data = one_cell.load(sessiontype=session_type,
-                                                 behavClass=behavior_class)
+    for i, plot_type in enumerate(plot_session_types):
+        if plot_type == "FT" or plot_type == "VOT":
+            # Load FTVOTBorders session once
+            try:
+                ephy_data, behavior_data = one_cell.load(sessiontype='FTVOTBorders', behavClass=behavior_class)
+            except IndexError:
+                print(f'Skipping cell {cell_index}, session "FTVOTBorders" not found.')
+                continue
 
-        # Gets spike times and event onset times (i.e. when the sounds were presented or the stim turns on)
-        spike_times = ephy_data['spikeTimes']
-        event_onset_times = ephy_data['events'][
-            'stimOn']
+            spike_times = ephy_data['spikeTimes']
+            event_onset_times = ephy_data['events']['stimOn']
 
-        # Sets time ranges for plotting and calculating firing rates
-        baseline_start = -0.1
-        baseline_end = 0.3
-        evoked_start = 0.015
-        evoked_end = 0.3
-        binWidth = 0.01
-        full_time = np.arange(baseline_start, evoked_end, binWidth)
-        timeRange = np.array([baseline_start, evoked_end])
+            evoked_end = 1.5
+            timeRange = np.array([-0.5, 1.5])
+            full_time = np.arange(timeRange[0], timeRange[1], binWidth)
 
-        baseline_rates = []
-        evoked_rates = []
+            spikeTimesFromEventOnset, trialIndexForEachSpike, indexLimitsEachTrial = (
+                spikesanalysis.eventlocked_spiketimes(
+                    spike_times,
+                    event_onset_times,
+                    timeRange,
+                    spikeindex=False
+                ))
 
-        for event_time in event_onset_times:
-            # Baseline calculation
-            baseline_spike_count = len(spike_times) / (baseline_end - baseline_start)
-            baseline_rates.append(baseline_spike_count)
+            spikeCountMatrix = spikesanalysis.spiketimes_to_spikecounts(
+                spikeTimesFromEventOnset,
+                indexLimitsEachTrial,
+                full_time
+            )
+            spikeCountMatrix = np.array(spikeCountMatrix)
 
-            # Evoked calculation
-            evoked_spike_count = len(spike_times) / (evoked_end - evoked_start)
-            evoked_rates.append(evoked_spike_count)
+            if plot_type == "FT":
+                trialParam = behavior_data['targetFTpercent']
+                possibleParams = np.unique(trialParam)
+                trialsEachType = behavioranalysis.find_trials_each_type(trialParam, possibleParams)
+                freqLabels = [f'{ft}%' for ft in possibleParams]
+                ylabel = 'FT (%)'
+                colorSource = possibleParams
+            else:  # plot_type == "VOT"
+                trialParam = behavior_data['targetVOTpercent']
+                possibleParams = np.unique(trialParam)
+                trialsEachType = behavioranalysis.find_trials_each_type(trialParam, possibleParams)
+                freqLabels = [f'{vot}%' for vot in possibleParams]
+                ylabel = 'VOT (%)'
+                colorSource = possibleParams
 
-        # Lines up event times and spike times
-        spikeTimesFromEventOnset, trialIndexForEachSpike, indexLimitsEachTrial = jaratoolbox.spikesanalysis.eventlocked_spiketimes(
-            spike_times,
-            event_onset_times,
-            [baseline_start, evoked_end],
-            spikeindex=False
-        )
+            raster_colors = [custom_colors[j % len(custom_colors)] for j in range(len(colorSource))]
 
-        # Convert to arrays
-        spikeTimesFromEventOnset = np.array(spikeTimesFromEventOnset)
-        trialIndexForEachSpike = np.array(trialIndexForEachSpike)
-        indexLimitsEachTrial = np.array(indexLimitsEachTrial)
-
-        # Converts spike times into spike counts in a matrix
-        spikeCountMatrix = jaratoolbox.spikesanalysis.spiketimes_to_spikecounts(spikeTimesFromEventOnset,
-                                                                                indexLimitsEachTrial,
-                                                                                full_time)
-
-        spikeCountMatrix = np.array(spikeCountMatrix)
-
-        # Get the corresponding frequencies for each event onset time from the behavior data (the current frequency presented)
-        freqEachTrial = behavior_data['currentFreq']
-        possibleFreq = np.unique(freqEachTrial)
-        if session_type == "pureTones":
-            freqLabels = ['{0:.0f}'.format(freq / 1000) for freq in possibleFreq]
         else:
-            freqLabels = ['{0:.0f}'.format(freq) for freq in possibleFreq]
-        trialsEachType = jaratoolbox.behavioranalysis.find_trials_each_type(freqEachTrial, possibleFreq)
-        cell_category = None
+            # pureTones or AM normal loading
+            try:
+                ephy_data, behavior_data = one_cell.load(sessiontype=plot_type, behavClass=behavior_class)
+            except IndexError:
+                print(f'Skipping cell {cell_index}, session "{plot_type}" not found.')
+                continue
 
-        # pRaster, hCond, zline = extraplots.raster_plot(spike_times, indexLimitsEachTrial,
-        # timeRange, trialsEachType, labels=freqLabels)
+            spike_times = ephy_data['spikeTimes']
+            event_onset_times = ephy_data['events']['stimOn']
+
+            if plot_type == "pureTones":
+                evoked_end = 0.1
+                timeRange = np.array([-0.1, 0.1])
+                full_time = np.arange(timeRange[0], timeRange[1], binWidth)
+            else:
+                evoked_end = 1.5
+                timeRange = np.array([-0.5, 1.5])
+                full_time = np.arange(timeRange[0], timeRange[1], binWidth)
+
+            spikeTimesFromEventOnset, trialIndexForEachSpike, indexLimitsEachTrial = (
+                spikesanalysis.eventlocked_spiketimes(
+                    spike_times,
+                    event_onset_times,
+                    timeRange,
+                    spikeindex=False
+                ))
+
+            spikeCountMatrix = spikesanalysis.spiketimes_to_spikecounts(
+                spikeTimesFromEventOnset,
+                indexLimitsEachTrial,
+                full_time
+            )
+            spikeCountMatrix = np.array(spikeCountMatrix)
+
+            freqEachTrial = behavior_data['currentFreq']
+            possibleFreq = np.unique(freqEachTrial)
+            trialsEachType = behavioranalysis.find_trials_each_type(freqEachTrial, possibleFreq)
+
+            if plot_type == "pureTones":
+                freqLabels = ['{0:.0f}'.format(freq / 1000) for freq in possibleFreq]
+                ylabel = 'Frequency (kHz)'
+            else:
+                freqLabels = ['{0:.0f}'.format(freq) for freq in possibleFreq]
+                ylabel = 'AM Rate (Hz)'
+
+            colorSource = possibleFreq
+            raster_colors = [custom_colors[j % len(custom_colors)] for j in range(len(colorSource))]
 
         # Plot raster
-        plt.subplot(2, 2, 2 - i)
-        # Define Tango color numbers
-        custom_colors = np.array(
-            ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22',
-             '#17becf',
-             '#aec7e8', '#ffbb78', '#98df8a', '#ff9896', '#c5b0d5', '#c49c94', '#f7b6d2', '#c7c7c7', '#dbdb8d',
-             '#9edae5'])
-        raster_colors = [custom_colors[cond] for cond in range(len(possibleFreq))]
-        raster = extraplots.raster_plot(spikeTimesFromEventOnset, indexLimitsEachTrial, timeRange=timeRange,
-                                        trialsEachCond=trialsEachType,
-                                        colorEachCond=raster_colors, fillWidth=None, labels=freqLabels, rasterized=True)
-
-        plt.title(f'{session_type} - Raster Plot')
+        plt.subplot(2, 4, i + 1)
+        extraplots.raster_plot(
+            spikeTimesFromEventOnset,
+            indexLimitsEachTrial,
+            timeRange=timeRange,
+            trialsEachCond=trialsEachType,
+            colorEachCond=raster_colors,
+            fillWidth=None,
+            labels=freqLabels,
+            rasterized=True
+        )
+        plt.title(f'{plot_type} - Raster Plot')
         plt.xlabel('Time from event onset (s)')
-        if session_type == "pureTones":
-            plt.ylabel('Frequency (kHz)')
-            y_ticks = np.round(plt.yticks()[0], 1)
-            plt.yticks(y_ticks)
+        plt.ylabel(ylabel)
+
+        # Mark lines
+        if plot_type == "pureTones":
+            plt.axvline(0.0, color='k', linestyle='--')
+            plt.axvline(0.04, color='k', linestyle='--')
+            plt.axvline(0.1, color='r', linestyle='--')
+            plt.axvline(0.14, color='r', linestyle='--')
         else:
-            plt.ylabel('AM Rate (Hz)')
+            plt.axvline(0.0, color='k', linestyle='--')
+            plt.axvline(0.2, color='k', linestyle='--')
+            plt.axvline(0.5, color='r', linestyle='--')
+            plt.axvline(0.7, color='r', linestyle='--')
 
         # Plot PSTH
-        plt.subplot(2, 2, 4 - i)
-        psth_colors = [custom_colors[cond] for cond in range(len(possibleFreq))]
+        plt.subplot(2, 4, i + 5)
         binsStartTime = np.arange(timeRange[0], timeRange[1], binWidth)
-
-        psth = extraplots.plot_psth(spikeCountMatrix / binWidth, smoothWinSize=6, binsStartTime=binsStartTime,
-                                    trialsEachCond=trialsEachType,
-                                    colorEachCond=psth_colors, linestyle=None, linewidth=3, downsamplefactor=1)
-
-        plt.title(f'{session_type} - PSTH')
+        extraplots.plot_psth(
+            spikeCountMatrix / binWidth,
+            smoothWinSize=6,
+            binsStartTime=binsStartTime,
+            trialsEachCond=trialsEachType,
+            colorEachCond=raster_colors,
+            linestyle=None,
+            linewidth=3,
+            downsamplefactor=1
+        )
+        plt.title(f'{plot_type} - PSTH')
         plt.xlabel('Time from event onset (s)')
         plt.ylabel('Firing Rate (spikes/s)')
+
+        # Mark lines on PSTH
+        if plot_type == "pureTones":
+            plt.axvline(0.0, color='k', linestyle='--')
+            plt.axvline(0.04, color='k', linestyle='--')
+            plt.axvline(0.1, color='r', linestyle='--')
+            plt.axvline(0.14, color='r', linestyle='--')
+        else:
+            plt.axvline(0.0, color='k', linestyle='--')
+            plt.axvline(0.2, color='k', linestyle='--')
+            plt.axvline(0.5, color='r', linestyle='--')
+            plt.axvline(0.7, color='r', linestyle='--')
 
     plt.tight_layout()
     plt.suptitle(f'Cell {cell_index}', fontsize=14)
 
-    folder_path = '/Users/zoetomlinson/Desktop/NeuroAI/self_exploration/'
+    folder_path = '/Users/zoetomlinson/Desktop/GitHub/neuronalDataResearch/Figures/Singular Mouse Plots/raster_psth'
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
 
-    #plt.savefig(os.path.join(folder_path, f'Cell {cell_index}.png'))
+    plt.savefig(f'{folder_path}/psth_raster_cell_{cell_index}.png')
     plt.show()
-
-    # If you need to change the markersize on the raster use the following:
-    # plt.setp(pRaster, ms=figparams.rasterMS)
-
-    # The following code is for adding boxes for stim duration (bbox) or brackets (arrowprops) for showing regions of focus on the raster
-    # ax = pRaster[0].axes
-
-    '''ax.annotate('Evoked Response', xy=(0.51, 1.01), xytext=(0.51, 1.05),
-                fontsize=12, fontweight='bold', ha='center',
-                va='bottom', xycoords='axes fraction',
-                bbox=dict(boxstyle='square', fc='0.8'),
-                arrowprops=dict(arrowstyle='-[, widthB=1.3, lengthB=0.5', lw=2.0, color='k'))'''

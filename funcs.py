@@ -9,7 +9,7 @@ import pandas as pd
 from sklearn.decomposition import PCA
 
 # %% Constants
-subject_list = ['feat005', 'feat006', 'feat007', 'feat008', 'feat009']  # 'feat004', 'feat010'
+subject_list = ['feat004', 'feat005', 'feat006', 'feat007', 'feat008', 'feat009', 'feat010']
 recordingDate_list = {
     'feat004': ['2022-01-11', '2022-01-19', '2022-01-21'],
     'feat005': ['2022-02-07', '2022-02-08', '2022-02-11', '2022-02-14', '2022-02-15', '2022-02-16'],
@@ -37,15 +37,16 @@ frequency_counts_dict = {tuple(freq): [] for freq in unique_labels}
 data_dict = {}
 
 # %% Load dataframe
-databaseDir = os.path.join(settings.DATABASE_PATH, '2022paspeech')
-fullDbPath = 'fulldb_speech_tuning.h5'
+databaseDir = os.path.join(settings.DATABASE_PATH, '2024popanalysis')
+fullDbPath = 'celldb_2024popanalysis.h5'
 fullPath = os.path.join(databaseDir, fullDbPath)
 fullDb = celldatabase.load_hdf(fullPath)
 simpleSiteNames = fullDb["recordingSiteName"].str.split(',').apply(lambda x: x[0])
+simpleSiteNames = simpleSiteNames.replace("Posterior auditory area", "Dorsal auditory area")
 fullDb["recordingSiteName"] = simpleSiteNames
 
 
-# Initialize plot and subset dataframe
+# %% Initialize plot and subset dataframe
 def load_data(subject, date, targetSiteName, sound_type_load):
     celldb = fullDb[(fullDb.subject == subject)]
     celldbSubset = celldb[(celldb.date == date)]
@@ -56,12 +57,28 @@ def load_data(subject, date, targetSiteName, sound_type_load):
         return None, None, None
 
     ensemble = ephyscore.CellEnsemble(celldbSubset)
-    ephysData, bdata = ensemble.load(sound_type_load)
+    try:
+        ephysData, bdata = ensemble.load(sound_type_load)
+    except IndexError:
+        print(f"No FTVOTBorder data for {targetSiteName} on {date} for {subject}")
+        return None, None, None
 
     return ensemble, ephysData, bdata
 
+
 # Calculate Spike Rate
 def spike_rate(sound_type, ensemble, ephysData, bdata, targetSiteName):
+    '''Calculate firing rate as spikes per second evoked
+            sound_type: str sound type label. ex. "speech"
+            ensemple: ephyscore.CellEnsemble(celldbSubset)
+            ephysData: ephyscore.CellEnsemble(celldbSubset)
+            bdata: ephyscore.CellEnsemble(celldbSubset)
+            targetSiteName: str brain area ex. "Primary auditory area"
+
+        Returns X array (spikeRateNormalized) of firing rates for specified sound type and brain area (trials, neurons)
+                Y brain area meta data (Y_brain_area_array) brain area meta data for each neuron
+                Y sound frequency (Hrz) (Y_frequency) meta data for each trial
+    '''
     X_array = []
 
     if sound_type == "speech":
@@ -110,53 +127,34 @@ def spike_rate(sound_type, ensemble, ephysData, bdata, targetSiteName):
     else:
         spikeRateNormalized = spikesPerSecEvokedNormalized
 
-    X_array.append(spikeRateNormalized)
     Y_brain_area_array = [targetSiteName] * spikeRateNormalized.shape[0]
-    Y_frequency_array = [Y_frequency]
 
-    return X_array, Y_brain_area_array, Y_frequency_array
+    return spikeRateNormalized, Y_brain_area_array, Y_frequency
 
 
-def adjust_array_and_labels(x_list, y_list, brain_area, max_length, subject, date, targetSiteName):
-    adjusted_x_list = []
-    adjusted_y_list = []
-    adjusted_ba_list = []
-    ignored_x_lists = []
-    ignored_y_lists = []
-    ignored_ba_lists = []
+def adjust_array_and_labels(x_array, y_array, Y_brain_area_PT, max_length, subject, date, targetSiteName):
+    # Check if any row in x_array has fewer than max_length trials
+    if x_array.shape[1] < max_length:
+        print(f"Not enough PT trials recorded for subject {subject}, on {date} in brain area {targetSiteName}.")
+        return None, None, None
+    else:
+        adjusted_x = x_array[:, :max_length]  # Truncate across all neurons
 
-    for i, x in enumerate(x_list):
-        if any(arr.shape[0] < max_length for arr in x):
-            ignored_x_lists.append(f"X list {i} (lengths: {[arr.shape[0] for arr in x]})")
-            ignored_ba_lists.extend(f"X list {i} (lengths: {[arr.shape[0] for arr in x]}")
-            print(f"Not enough PT trials recorded for subject {subject}, on {date} in brain area {targetSiteName}.")
-            continue
+    adjusted_y = y_array[:max_length]
+    adjusted_yba = Y_brain_area_PT[:max_length]
 
-        # Truncate each array in the list to max_length
-        adjusted_x_list.append([arr[:max_length] for arr in x])
-        adjusted_ba_list.extend(brain_area)
-
-    for i, y in enumerate(y_list):
-        if len(y) < max_length:
-            ignored_y_lists.append(f"Y list {i} (length: {len(y)})")
-            ignored_ba_lists.append(f"X list {i} (lengths: {[arr.shape[0] for arr in x]}")
-            continue
-
-        adjusted_y_list.append(y[:max_length])
-
-    return adjusted_x_list, adjusted_y_list, adjusted_ba_list, ignored_x_lists, ignored_y_lists, ignored_ba_lists
+    return adjusted_x, adjusted_y, adjusted_yba
 
 
 def sort_x_arrays(X_list, indices, sound_type):
     sorted_x_list = []
     for x in X_list:
         if sound_type == "am" or sound_type == "pt":
-            sorted_x = [arr[indices] for arr in x]
+            sorted_x = x[indices]
             sorted_x_list.append(np.array(sorted_x))
         if sound_type == "speech":
-            for z in x:
-                sorted_x = [arr[indices] for arr in z]
-                sorted_x_list.append(np.array(sorted_x))
+            sorted_x = x[indices]
+            sorted_x_list.append(np.array(sorted_x))
     return sorted_x_list
 
 
@@ -183,7 +181,138 @@ def create_figure_grid(rows, cols, title, figsize=(18, 10)):
     return fig, axes
 
 
+def min_speech_dict(Y_frequency_speech, X_speech, subject, date, targetSiteName, previous_frequency_speech):
+    valid_indices = []
+    freq_kept_counts = {tuple(freq): 0 for freq in unique_labels}
+
+    # Filter the trials for each frequency based on min_speech_freq_dict
+    for i, freq in enumerate(Y_frequency_speech[0]):
+        freq_tuple = tuple(freq)
+        # Check if the count for this frequency hasn't exceeded the minimum allowed count
+        if freq_kept_counts[freq_tuple] < min_speech_freq_dict[freq_tuple]:
+            valid_indices.append(i)
+            freq_kept_counts[freq_tuple] += 1
+
+    # Filter X_speech and Y arrays based on valid indices
+    if len(valid_indices) < max_trials['speech']:
+        print(
+            f'Not enough speech trials for subject {subject}, on {date} in brain area {targetSiteName}')
+        pass
+    else:
+        X_speech = np.array(X_speech)
+        X_speech = X_speech.T
+        X_speech_filtered = X_speech[valid_indices]
+        X_speech_filtered = X_speech_filtered.T
+        Y_frequency_speech_filtered = Y_frequency_speech[0][valid_indices]
+    return X_speech, X_speech_filtered, Y_frequency_speech_filtered
+
+
+def adjust_speech_length(subject, date, brain_area, X_speech, Y_frequency_speech, Y_brain_area_speech, previous_frequency_speech):
+    valid_indices = []
+    freq_kept_counts = {tuple(freq): 0 for freq in unique_labels}
+
+    # Filter valid trials based on frequency count
+    for i, freq in enumerate(Y_frequency_speech):
+        freq_tuple = tuple(freq)
+        if freq_kept_counts[freq_tuple] < min_speech_freq_dict[freq_tuple]:
+            valid_indices.append(i)
+            freq_kept_counts[freq_tuple] += 1
+
+    # Filter X_speech and Y arrays based on valid indices
+    if len(valid_indices) < max_trials['speech']:
+        print(f'Not enough speech trials for subject {subject}, on {date} in brain area {brain_area}')
+        return None, None, None, None
+    else:
+        X_speech = np.array(X_speech)
+        X_speech = X_speech.T
+        X_speech_filtered = X_speech[valid_indices]
+        X_speech_filtered = X_speech_filtered.T
+        Y_frequency_speech_filtered = Y_frequency_speech[valid_indices]
+
+        if len(X_speech_filtered) != 0:
+            # Sort Y_frequency_speech_adjusted
+            if isinstance(Y_frequency_speech_filtered, list):
+                Y_frequency_speech_filtered = np.array(Y_frequency_speech_filtered)
+
+            # Use np.lexsort to sort by the second element of the tuple first, and then by the first element
+            indices_speech = np.lexsort(
+                (Y_frequency_speech_filtered[:, 1], Y_frequency_speech_filtered[:, 0]))
+
+            # Use these sorted indices to rearrange the array
+            Y_frequency_speech_sorted = Y_frequency_speech_filtered[indices_speech]
+
+            # Check if frequency lists are all the same
+            if previous_frequency_speech is not None:
+                assert np.array_equal(Y_frequency_speech_sorted, previous_frequency_speech), (
+                    f"Frequency mismatch for subject: {subject}, date: {date}, target site: {brain_area}"
+                    f"Previous: {previous_frequency_speech} and sorted: {Y_frequency_speech_sorted}")
+
+            previous_frequency_speech = deepcopy(Y_frequency_speech_sorted)
+
+        return X_speech_filtered, Y_frequency_speech_sorted, previous_frequency_speech, indices_speech
+
+
+def sort_sound_array(subject, date, brain_area, X_adjusted, Y_brain_area_all, Y_frequency_adjusted, previous_frequency):
+    X_all = None
+    Y_brain_area_all_combined = None
+
+    if X_adjusted is not None:
+        if len(X_adjusted) != 0:
+            # Sort Y_frequency_AM_adjusted
+            Y_frequency = np.array(Y_frequency_adjusted)
+            sorted_indices = np.argsort(Y_frequency)
+            sorted_Y_freq = Y_frequency[sorted_indices]
+            Y_frequency_sorted = sorted_Y_freq
+
+            Y_frequency_sorted = np.array(Y_frequency_sorted)
+            indices = np.argsort(Y_frequency_sorted)  # Sort by frequency values
+
+            # Check if frequency lists are all the same
+            if previous_frequency is not None:
+                assert np.array_equal(Y_frequency_sorted, previous_frequency), (
+                    f"Frequency mismatch for subject: {subject}, date: {date}, target site: {brain_area}")
+            previous_frequency = deepcopy(Y_frequency_sorted)
+
+            # Concatenate data instead of extending lists
+            if X_all is None:
+                X_all = X_adjusted
+            else:
+                X_all = np.concatenate((X_all, X_adjusted), axis=0)
+
+            if Y_brain_area_all_combined is None:
+                Y_brain_area_all_combined = Y_brain_area_all
+            else:
+                Y_brain_area_all_combined = np.concatenate((Y_brain_area_all_combined, Y_brain_area_all), axis=0)
+    else:
+        return None, None, None, previous_frequency, None
+
+    return X_all, Y_frequency_sorted, Y_brain_area_all_combined, previous_frequency, indices
+
+
+def sort_speech_frequencies(X_speech_filtered, Y_frequency_speech_filtered, subject, date, targetSiteName,
+                            previous_frequency_speech):
+    if len(X_speech_filtered) != 0:
+        # Sort Y_frequency_speech_adjusted
+        if isinstance(Y_frequency_speech_filtered, list):
+            Y_frequency_speech_filtered = np.array(Y_frequency_speech_filtered[0])
+
+        # Use np.lexsort to sort by the second element of the tuple first, and then by the first element
+        indices_speech = np.lexsort(
+            (Y_frequency_speech_filtered[:, 1], Y_frequency_speech_filtered[:, 0]))
+
+        # Use these sorted indices to rearrange the array
+        Y_frequency_speech_sorted = Y_frequency_speech_filtered[indices_speech]
+
+        # Check if frequency lists are all the same
+        if previous_frequency_speech is not None:
+            assert np.array_equal(Y_frequency_speech_sorted, previous_frequency_speech), (
+                f"Frequency mismatch for subject: {subject}, date: {date}, target site: {targetSiteName}")
+        previous_frequency_speech = deepcopy(Y_frequency_speech_sorted)
+    return Y_frequency_speech_sorted, indices_speech, previous_frequency_speech
+
+
 def clean_and_concatenate(subject, recordingDate_list, targetSiteName, previous_frequency_AM, previous_frequency_PT, previous_frequency_speech):
+    global X_speech_array, X_AM_array, X_PT_array, Y_frequency_speech_sorted, Y_frequency_AM_sorted, Y_frequency_pureTones_sorted
     y_max = 0.17
     X_speech_all = []
     Y_brain_area_speech_all = []
@@ -191,6 +320,9 @@ def clean_and_concatenate(subject, recordingDate_list, targetSiteName, previous_
     Y_brain_area_AM_all = []
     X_pureTones_all = []
     Y_brain_area_PT_all = []
+    indices_AM = None
+    indices_PT = None
+    indices_speech = None
 
     for date in recordingDate_list[subject]:
         # Load and process data for Speech
@@ -246,6 +378,8 @@ def clean_and_concatenate(subject, recordingDate_list, targetSiteName, previous_
                 # Append to lists
                 X_speech_all.extend([X_speech_filtered])
                 Y_brain_area_speech_all.extend(Y_brain_area_speech)
+        else:
+            continue
 
         # Load and process data for AM
         amEnsemble, amEphys, amBdata = load_data(subject, date, targetSiteName, "AM")
@@ -278,6 +412,8 @@ def clean_and_concatenate(subject, recordingDate_list, targetSiteName, previous_
             # Append to lists
             X_AM_all.extend(X_AM_adjusted)
             Y_brain_area_AM_all.extend(Yba_AM_adj)
+        else:
+            continue
 
         # Load and process data for Pure Tones
         ptEnsemble, ptEphys, ptBdata = load_data(subject, date, targetSiteName, "pureTones")
@@ -310,46 +446,51 @@ def clean_and_concatenate(subject, recordingDate_list, targetSiteName, previous_
             # Append to the lists
             X_pureTones_all.extend(X_PT_adjusted)
             Y_brain_area_PT_all.extend(Yba_PT_adj)
-
-    # Apply sorting to the X arrays
-    X_AM_sorted = sort_x_arrays(X_AM_all, indices_AM, "am")
-    X_PT_sorted = sort_x_arrays(X_pureTones_all, indices_PT, "pt")
-    X_speech_sorted = sort_x_arrays(X_speech_all, indices_speech, "speech")
-
-    # Concatenate the sorted arrays
-    X_speech_array = np.concatenate(X_speech_sorted, axis=0)
-    X_AM_array = np.concatenate(X_AM_sorted, axis=0)
-    X_PT_array = np.concatenate(X_PT_sorted, axis=0)
+        else:
+            continue
+    if X_AM_all:
+        X_AM_sorted = sort_x_arrays(X_AM_all, indices_AM, "am")
+        X_AM_array = np.concatenate(X_AM_sorted, axis=0)
+    if X_pureTones_all:
+        X_PT_sorted = sort_x_arrays(X_pureTones_all, indices_PT, "pt")
+        X_PT_array = np.concatenate(X_PT_sorted, axis=0)
+    if X_speech_all:
+        X_speech_sorted = sort_x_arrays(X_speech_all, indices_speech, "speech")
+        X_speech_array = np.concatenate(X_speech_sorted, axis=0)
 
     return (X_speech_array, X_AM_array, X_PT_array, Y_brain_area_speech_all, Y_brain_area_AM_all, Y_brain_area_PT_all,
             Y_frequency_speech_sorted, Y_frequency_AM_sorted, Y_frequency_pureTones_sorted)
 
+
 def calculate_participation_ratio(explained_variance_ratio):
     return ((np.sum(explained_variance_ratio)) ** 2) / np.sum(explained_variance_ratio ** 2)
 
-def plot_scree_plot(ax, data, title, y_max, particRatio):
+
+def plot_scree_plot(ax, data, title, y_max, particRatio, color='black'):
+    # Perform PCA
     pca = PCA()
     pca.fit(data)
     explained_variance_ratio = pca.explained_variance_ratio_
 
-    n_components = len(explained_variance_ratio)
-    x_max = min(n_components, 13)  # Limit x-axis to 13 components
-    x_min = 0
+    # Plot settings
+    x_max = min(len(explained_variance_ratio), 11)
+    ax.bar(range(x_max), explained_variance_ratio[:x_max], color=color)
 
-    ax.bar(range(x_max), explained_variance_ratio[:x_max], color='black')
-    ax.set_xlabel('PCA features', fontsize=12)
-    ax.set_ylabel('Explained Variance Ratio', fontsize=12)
-    ax.set_title(title, fontsize=14)
+    # Axis formatting
     ax.set_xticks(range(x_max))
-    ax.set_xlim(x_min, 13)  # Set x-axis limits from 0 to 13
-    ax.set_ylim(0, y_max)  # Set y-axis limits to be consistent
-    ax.text(0.6, 0.85, f"Participation Ratio = {particRatio:.3f}",
-            horizontalalignment='center', verticalalignment='center',
-            fontsize=14, transform=ax.transAxes)
-    ax.grid(True, which='both', linestyle='--', linewidth=0.5)
+    ax.set_xlim(0, 11)
+    ax.set_ylim(0, y_max)
+
+    # Participation ratio annotation
+    ax.text(0.5, 0.9,
+            f"Participation Ratio = {particRatio:.3f}",
+            transform=ax.transAxes,
+            ha='center', va='center',
+            fontsize=28,
+            bbox=dict(boxstyle='round,pad=0.3', facecolor='white', edgecolor='gray', alpha=0.6))
 
 
-def plot_2d_pca(ax, data, labels, title, cmap='viridis'):
+def plot_2d_pca(ax, data, labels, title, cmap):
     """
     Plots 2D PCA of the input data on the given axis.
 
@@ -370,10 +511,20 @@ def plot_2d_pca(ax, data, labels, title, cmap='viridis'):
 
     scatter = ax.scatter(transformed_data[:, 0], transformed_data[:, 1], c=labels, cmap=cmap, s=32)
 
-    ax.set_title(title)
     ax.set_xlabel(f'PCA 1 ({explained_variance[0] * 100:.2f}% variance)')
     ax.set_ylabel(f'PCA 2 ({explained_variance[1] * 100:.2f}% variance)')
-    cbar = plt.colorbar(scatter, ax=ax, orientation='vertical')
-    cbar.set_label('Labels')
 
     return scatter
+
+def euclidean_distance(vec1, vec2):
+    vec1 = np.array(vec1)
+    vec2 = np.array(vec2)
+    return np.linalg.norm(vec1 - vec2)
+
+
+def trial_distances(trials, mean_vec):
+    distances = []
+    for trial in trials:
+        dist = sum((x - m) ** 2 for x, m in zip(trial, mean_vec)) ** 0.5
+        distances.append(dist)
+    return distances

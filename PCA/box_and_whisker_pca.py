@@ -332,7 +332,7 @@ for subject in subject_list:
     data_dict = {}
 
     # Add data to the dictionary for each brain area and sound type
-    for brain_area in ["Primary auditory area", "Ventral auditory area"]:
+    for brain_area in targetSiteNames:
         for sound_type, X_array, Y_brain_area_all, Y_frequency_sorted in zip(
                 ['speech', 'AM', 'PT'],
                 [X_speech_array, X_AM_array, X_PT_array],
@@ -344,7 +344,7 @@ for subject in subject_list:
             X_array_adjusted = select_neurons(X_array_adjusted.T, brain_area, min_neuron_dict)
             data_dict[(brain_area, sound_type)] = {'X': X_array_adjusted, 'Y': Y_frequency_sorted}
 
-    for i, brain_area in enumerate(["Primary auditory area", "Ventral auditory area"]):
+    for i, brain_area in enumerate(targetSiteNames):
         for j, sound_type in enumerate(['speech', 'AM', 'PT']):
             data = data_dict[(brain_area, sound_type)]
 
@@ -380,7 +380,7 @@ def box_and_whisker_plot(speech_array, am_array, pt_array, brain_area, n_neurons
     data = [speech_array, am_array, pt_array]
 
     # Create the boxplot
-    fig, ax = plt.subplots(figsize=(8, 6))
+    fig, ax = plt.subplots(figsize=(22, 16))
     fig.suptitle(f'{brain_area} Box Plot for Sounds', fontsize=16)
 
     # Boxplot for speech, AM, and PT data

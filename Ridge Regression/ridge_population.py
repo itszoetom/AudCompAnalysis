@@ -8,6 +8,7 @@ from sklearn.linear_model import Ridge
 import funcs
 import seaborn as sns
 import params
+
 # %% Constants
 subject_list = ['feat004', 'feat005', 'feat006', 'feat007', 'feat008', 'feat009']  # 'feat010'
 recordingDate_list = {
@@ -84,9 +85,12 @@ for subject in params.subject_list:
                                                Y_brain_area_speech, previous_frequency_speech))
 
                 if X_speech_array is not None:
-                    # Y_frequency_FT = Y_frequency_speech_sorted[:, 0]
-                    # Y_frequency_VOT = Y_frequency_speech_sorted[:, 1]
+                    Y_frequency_FT = Y_frequency_speech_sorted[:, 0]
+                    Y_frequency_VOT = Y_frequency_speech_sorted[:, 1]
+
+                    # Append the data to the lists
                     X_speech_all.extend(X_speech_array)
+                    Y_frequency_speech_2 = Y_frequency_speech_sorted
                     Y_brain_area_speech_all.extend(Y_brain_area_speech)
 
             # Load and process data for AM
@@ -107,6 +111,7 @@ for subject in params.subject_list:
                 if X_AM_array is not None:
                     # Append the data to the lists
                     X_AM_all.extend(X_AM_array)
+                    Y_frequency_AM_2 = Y_frequency_AM_sorted
                     Y_brain_area_AM_all.extend(Y_brain_area_AM_sorted)
 
             # Load and process data for Pure Tones
@@ -125,7 +130,9 @@ for subject in params.subject_list:
                     funcs.sort_sound_array(subject, date, brain_area, X_PT_adjusted, Yba_PT_adj, Y_frequency_PT_adjusted, previous_frequency_PT))
 
                 if X_PT_array is not None:
+                    # Append the data to the lists
                     X_pureTones_all.extend(X_PT_array)
+                    Y_frequency_PT_2 = Y_frequency_PT_sorted
                     Y_brain_area_PT_all.extend(Y_brain_area_PT_sorted)
 
 # %% Sort arrays
@@ -142,31 +149,26 @@ X_PT_array = np.stack(X_PT_sorted, axis=0)
 # Initialize a dictionary to store 2D arrays for each brain_area - sound_type combo
 data_dict = {}
 
-for subject in subject_list:
-    for brain_area in params.targetSiteNames:
-        for sound_type, X_array, Y_brain_area_all, Y_frequency_sorted in zip(
-                ['AM', 'PT', 'speech'],
-                [X_AM_array, X_PT_array, X_speech_array],
-                [Y_brain_area_AM_all, Y_brain_area_PT_all, Y_brain_area_speech_all],
-                [Y_frequency_AM_sorted, Y_frequency_PT_sorted, Y_frequency_speech_sorted]):
+for brain_area in params.targetSiteNames:
+    for sound_type, X_array, Y_brain_area_all, Y_frequency_sorted in zip(
+            ['AM', 'PT', 'FT', 'VOT'],
+            [X_AM_array, X_PT_array, X_speech_array, X_speech_array],
+            [Y_brain_area_AM_all, Y_brain_area_PT_all, Y_brain_area_speech_all, Y_brain_area_speech_all],
+            [Y_frequency_AM_sorted, Y_frequency_PT_sorted, Y_frequency_FT, Y_frequency_VOT]):
 
-            # Filter data based on the brain_area
-            brain_area_array = np.array(Y_brain_area_all)
-            X_array_adjusted = X_array[brain_area_array == brain_area]  # X is neurons x trials
+        # Filter data based on the brain_area
+        brain_area_array = np.array(Y_brain_area_all)
+        X_array_adjusted = X_array[brain_area_array == brain_area]  # X is neurons x trials
 
-            # Store the 2D array (neurons x trials) in the dictionary
-            data_dict[(subject, brain_area, sound_type)] = {
-                'X': X_array_adjusted.T,  # Transpose to get the correct shape (neurons x trials)
-                'Y': np.array(Y_frequency_sorted)}  # Y is a 1D array of frequencies
+        # Store the 2D array (neurons x trials) in the dictionary
+        data_dict[(brain_area, sound_type)] = {
+            'X': X_array_adjusted.T,  # Transpose to get the correct shape (neurons x trials)
+            'Y': np.array(Y_frequency_sorted)}  # Y is a 1D array of frequencies
 
 # %% Ridge Regression
 for key, value in data_dict.items():
     X = value['X']
-    if (key[0] == 'feat004' or key[0] == 'feat006') and (key[1] == 'Primary auditory area' or key[1] == 'Ventral auditory area'):
-        continue  # dont include this data because there arent enough neurons
-    if (key[0] == 'feat008' or key[0] == 'feat009') and key[1] == 'Dorsal auditory area':
-        continue
-    smallest_neuron_count = 60
+    n_neurons = X.shape[1]
 
     if key[1] == 'AM' or key[1] == 'PT':
         Y = np.log(value['Y'])
@@ -174,39 +176,35 @@ for key, value in data_dict.items():
         Y = value['Y']
 
     # Sampling iterations
-    sampled_indices = np.random.choice(X.shape[1], smallest_neuron_count, replace=False)
-    X_sampled = X[:, sampled_indices]
-    n_neurons = X_sampled.shape[1]
+    for iteration in range(iterations):
+        # Train-test split
+        X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2,
+                                                            random_state=random_seed)
+        # Check if the array is empty before fitting the model
+        if X_train.shape[1] == 0:
+            print(f"Skipping {key[0]} - {key[1]} - {key[2]} due to empty feature array.")
+            continue  # Skip this iteration
 
-    # Train-test split
-    X_train, X_test, Y_train, Y_test = train_test_split(X_sampled, Y, test_size=0.2,
-                                                        random_state=random_seed)
-    # Check if the array is empty before fitting the model
-    if X_train.shape[1] == 0:
-        print(f"Skipping {key[0]} - {key[1]} - {key[2]} due to empty feature array.")
-        continue  # Skip this iteration
+        # Find best alpha using Ridge Regression
+        best_r2, best_alpha = -np.inf, None
+        for alpha in alphas:
+            ridge = Ridge(alpha=alpha)
+            ridge.fit(X_train, Y_train)
+            r2 = ridge.score(X_test, Y_test)
+            if r2 > best_r2:
+                best_r2 = r2
+                best_alpha = alpha
 
-    # Find best alpha using Ridge Regression
-    best_r2, best_alpha = -np.inf, None
-    for alpha in alphas:
-        ridge = Ridge(alpha=alpha)
-        ridge.fit(X_train, Y_train)
-        r2 = ridge.score(X_test, Y_test)
-        if r2 > best_r2:
-            best_r2 = r2
-            best_alpha = alpha
-
-    # Append results
-    results.append({
-        'Subject': key[0],
-        'Brain Area': key[1],
-        'Sound Type': key[2],
-        'R2 Test': best_r2
+        # Append results
+        results.append({
+            'Brain Area': key[0],
+            'Sound Type': key[1],
+            'R2 Test': best_r2
         })
 
-    if key[1] == "Primary auditory area":
+    if key[0] == "Primary auditory area":
         primary_n_neurons += n_neurons
-    elif key[1] == "Dorsal auditory area":
+    elif key[0] == "Dorsal auditory area":
         dorsal_n_neurons += n_neurons
     else:
         ventral_n_neurons += n_neurons
@@ -216,40 +214,29 @@ results_df = pd.DataFrame(results)
 
 # Compute the average R² for each Subject, Brain Area, and Sound Type
 average_r2_df = results_df.groupby(['Subject', 'Brain Area', 'Sound Type'], as_index=False)['R2 Test'].mean()
-from matplotlib import cm
+sound_order = ['AM', 'PT', 'VOT', 'FT']
 
-# Define consistent order for sound types
-sound_order = ['PT', 'AM', 'speech']
+# Add a new column to the DataFrame for mapped colors
+average_r2_df['Color'] = average_r2_df.apply(lambda row: params.color_palette.get((row['Brain Area'], row['Sound Type'])), axis=1)
 
-# Map sound types to specific colors from different colormaps
-sound_cmaps = {
-    "PT": cm.winter(0.5),
-    "AM": cm.magma(0.5),
-    "speech": cm.summer(0.5),
-}
-
-# Plot with white background and color mapping
-fig, ax = plt.subplots(figsize=(10, 6))
-sns.boxplot(
+# Plot
+plt.figure(figsize=(12, 6))
+ax = sns.boxplot(
     data=average_r2_df,
     x='Brain Area',
     y='R2 Test',
     hue='Sound Type',
     order=["Primary auditory area", "Dorsal auditory area", "Ventral auditory area"],
     hue_order=sound_order,
-    palette=[sound_cmaps[sound] for sound in sound_order],
-    ax=ax
+    palette=[params.color_palette[(area, sound)] for area in ["Primary auditory area", "Dorsal auditory area", "Ventral auditory area"] for sound in sound_order]
 )
 
-# Style the plot
-plt.title("R² Scores by Brain Area and Sound Type", fontsize=18)
-plt.xlabel("Brain Area", fontsize=14)
-plt.ylabel("Correlation (R² Score)", fontsize=14)
-plt.xticks(fontsize=12)
-plt.yticks(fontsize=12)
+plt.title("R² Scores by Brain Area and Sound Type")
 plt.legend(title='Sound Type', bbox_to_anchor=(1.05, 1), loc='upper left')
 plt.tight_layout()
 
-# Save the plot
-plt.savefig("/Users/zoetomlinson/Desktop/GitHub/neuronalDataResearch/Figures/Ridge Regression/R2_BoxPlot_Poster.png")
+# Save the figure
+plt.savefig("/Users/zoetomlinson/Desktop/GitHub/neuronalDataResearch/Figures/Ridge Regression/"
+            "R2_BoxPlot_Subset10neurons_4mice.png")
+
 plt.show()
