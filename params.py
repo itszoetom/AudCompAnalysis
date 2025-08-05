@@ -53,15 +53,28 @@ targetSiteNames = ["Primary auditory area", "Dorsal auditory area", "Ventral aud
 max_trials = {'PT': 640, 'AM': 220, 'speech': 381}
 leastCellsArea = 10000
 
-spike_windows = {'speech - onset': [0.015, 0.115],  # [evoked_start, evoked_stop] in s
-                 'speech - sustained': [0.150, 0.250],
-                 'speech - offset': [0.265, 0.365],
-                 'am - onset': [0.015, 0.115],      # [evoked_start, evoked_stop] in s
-                 'am - sustained': [0.150, 0.250],
-                 'am - offset': [0.265, 0.500],
-                 'pt - onset': [0.015, 0.055],
-                 'pt - sustained': [0.060, 0.100],
-                 'pt - offset': [0.115, 0.155]}
+spike_windows = {'pt - onset': [0.0, 0.03],  # [evoked_start, evoked_stop] in s
+                 'pt - sustained': [0.03, 0.1],
+                 'pt - offset': [0.1, 0.13],
+                 'am - onset': [0.0, 0.2],      # [evoked_start, evoked_stop] in s
+                 'am - sustained': [0.2, 0.5],
+                 'am - offset': [0.5, 0.7],
+                 'speech - onset': [0.0, 0.2],
+                 'speech - sustained': [0.2, 0.5],
+                 'speech - offset': [0.5, 0.7]}
+
+# Mapping from old window names to simplified names
+window_name_mapping = {
+    'speech - onset': 'onset',
+    'speech - sustained': 'sustained',
+    'speech - offset': 'offset',
+    'pt - onset': 'onset',
+    'pt - sustained': 'sustained',
+    'pt - offset': 'offset',
+    'am - onset': 'onset',
+    'am - sustained': 'sustained',
+    'am - offset': 'offset'
+}
 
 evoked_start = 0.015
 evoked_end = 0.3
@@ -69,6 +82,33 @@ pt_evoked_end = 0.1
 binWidth = 0.01
 
 from matplotlib import cm
+
+area_cmaps = {
+    "Primary auditory area": cm.winter,
+    "Dorsal auditory area": cm.magma,
+    "Ventral auditory area": cm.summer,
+}
+
+# Define color map per sound type
+sound_colormaps = {
+    'AM': cm.magma,
+    'PT': cm.winter,
+    'speech': cm.summer
+}
+
+short_names = {
+    'Primary auditory area': 'Primary',
+    'Dorsal auditory area':  'Dorsal',
+    'Ventral auditory area': 'Ventral'
+}
+
+# Define all unique speech labels (VOT, FT)
+unique_labels = [(0, 0), (0, 33), (0, 67), (0, 100), (33, 100), (67, 100),
+                 (100, 100), (100, 67), (100, 33), (100, 0), (67, 0), (33, 0)]
+
+
+
+
 
 color_palette = {
     "Primary auditory area - PT": cm.winter(1),      # Dark blue (Winter bottom)
@@ -84,17 +124,6 @@ color_palette = {
     "Ventral auditory area - speech": cm.summer(0.33),  # Pale minty green (Summer top)
 }
 
-plot_params = {
-    "font.family": "Arial",
-    "font.size": 10,
-    "axes.titlesize": 12,
-    "axes.labelsize": 10,
-    "xtick.labelsize": 9,
-    "ytick.labelsize": 9,
-    "legend.fontsize": 9,
-    "figure.dpi": 300,
-    "axes.linewidth": 1.2,
-    "lines.linewidth": 1.8,
-    "lines.markersize": 4,
-    "savefig.bbox": 'tight'
-}
+
+
+

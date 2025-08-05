@@ -509,7 +509,7 @@ def plot_2d_pca(ax, data, labels, title, cmap):
 
     explained_variance = pca.explained_variance_ratio_
 
-    scatter = ax.scatter(transformed_data[:, 0], transformed_data[:, 1], c=labels, cmap=cmap, s=32)
+    scatter = ax.scatter(transformed_data[:, 0], transformed_data[:, 1], c=labels, cmap=cmap, s=32, alpha=0.5)
 
     ax.set_xlabel(f'PCA 1 ({explained_variance[0] * 100:.2f}% variance)')
     ax.set_ylabel(f'PCA 2 ({explained_variance[1] * 100:.2f}% variance)')

@@ -38,15 +38,15 @@ if __name__ == "__main__":
     clusteringObj.process_all_experiments()
     '''
 
-    # -- Generate cell database (this function excludes clusters with isi>0.05, spikeQuality<2 --
+    # Generate cell database (this function excludes clusters with isi>0.05, spikeQuality<2
     celldb = celldatabase.generate_cell_database_from_subjects(params.subject_list)
 
-    # -- Compute the base stats and indices for each cell --
+    # Calculate base stats and indices for each cell
     celldb = calculate_base_stats(celldb)  # Calculated for all cells
-    celldb = calculate_indices(celldb) # Calculated for a selected subset of cells
-    celldb = calculate_cell_locations(celldb)
+    celldb = calculate_indices(celldb)  # Calculated for a selected subset of cells
+    celldb = calculate_cell_locations(celldb)  # TODO: Need jarashare/histology for this
 
-    dbPath = os.path.join(settings.FIGURES_DATA_PATH, params.STUDY_NAME)
+    dbPath = os.path.join(settings.FIGURES_DATA_PATH, params.STUDY_NAME) # TODO: Need jarahubdata/figuresdata for this
     dbPath2022 = os.path.join(settings.FIGURES_DATA_PATH, params.STUDY_NAME_2022)
     dbFilename = os.path.join(dbPath, 'celldb_{}.h5'.format(params.STUDY_NAME))
     dbFilename2022 = os.path.join(dbPath2022, 'celldb_{}.h5'.format(params.STUDY_NAME_2022))

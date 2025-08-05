@@ -20,7 +20,7 @@ session_types = ["pureTones", "AM", "FTVOTBorders"]
 binWidth = 0.01
 
 # Loop over individual cells
-for cell_index in range(20, 35):
+for cell_index in range(0, 20):
     one_cell_info = oneMouseDf.iloc[cell_index]
     one_cell = ephyscore.Cell(one_cell_info)
 
@@ -92,7 +92,7 @@ for cell_index in range(20, 35):
 
             if plot_type == "pureTones":
                 evoked_end = 0.1
-                timeRange = np.array([-0.1, 0.1])
+                timeRange = np.array([-0.1, 0.3])
                 full_time = np.arange(timeRange[0], timeRange[1], binWidth)
             else:
                 evoked_end = 1.5
@@ -146,13 +146,13 @@ for cell_index in range(20, 35):
 
         # Mark lines
         if plot_type == "pureTones":
-            plt.axvline(0.0, color='k', linestyle='--')
-            plt.axvline(0.04, color='k', linestyle='--')
-            plt.axvline(0.1, color='r', linestyle='--')
-            plt.axvline(0.14, color='r', linestyle='--')
+            plt.axvline(0.0, color='y', linestyle='--')  # Stimulus onset
+            plt.axvline(0.03, color='c', linestyle='--')  # End of onset period
+            plt.axvline(0.1, color='r', linestyle='--')  # Start of offset period
+            plt.axvline(0.13, color='r', linestyle='--')  # Stimulus offset
         else:
-            plt.axvline(0.0, color='k', linestyle='--')
-            plt.axvline(0.2, color='k', linestyle='--')
+            plt.axvline(0.0, color='y', linestyle='--')
+            plt.axvline(0.2, color='c', linestyle='--')
             plt.axvline(0.5, color='r', linestyle='--')
             plt.axvline(0.7, color='r', linestyle='--')
 
@@ -175,13 +175,13 @@ for cell_index in range(20, 35):
 
         # Mark lines on PSTH
         if plot_type == "pureTones":
-            plt.axvline(0.0, color='k', linestyle='--')
-            plt.axvline(0.04, color='k', linestyle='--')
-            plt.axvline(0.1, color='r', linestyle='--')
-            plt.axvline(0.14, color='r', linestyle='--')
+            plt.axvline(0.0, color='y', linestyle='--')  # Stimulus onset
+            plt.axvline(0.03, color='c', linestyle='--')  # End of onset period
+            plt.axvline(0.1, color='r', linestyle='--')  # Start of offset period
+            plt.axvline(0.13, color='r', linestyle='--')  # Stimulus offset
         else:
-            plt.axvline(0.0, color='k', linestyle='--')
-            plt.axvline(0.2, color='k', linestyle='--')
+            plt.axvline(0.0, color='y', linestyle='--')
+            plt.axvline(0.2, color='c', linestyle='--')
             plt.axvline(0.5, color='r', linestyle='--')
             plt.axvline(0.7, color='r', linestyle='--')
 
