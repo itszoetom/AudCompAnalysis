@@ -18,7 +18,7 @@ importlib.reload(loadneuropix)
 # ----- CONFIG -----
 debug = False  # Set to True to simulate processing without saving files
 base_path = '/Volumes/NardociData/ephys/neuropixels'
-allowed_subjects = [f'feat00{i}' for i in range(4, 10)] + ['feat010']
+allowed_subjects = [f'feat0{i}' for i in range(19, 20)]
 pattern = re.compile(r'multisession_(\d{4}-\d{2}-\d{2})_(\d+)um_processed')
 # -------------------
 

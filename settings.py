@@ -17,9 +17,9 @@ VIDEO_PATH = '/mnt/jarahubdata/video'
 
 FIGURES_DATA_PATH = '/Volumes/NardociData/jarahubdata/figuresdata' # Intermediate data for subfigures
 
-INFOREC_PATH = '/Users/zoetomlinson/Desktop/Murray Lab/jarainfo/inforecordings/'
+INFOREC_PATH = '/Users/zoetomlinson/Desktop/MurrayLab/jarainfo/inforecordings/'
 
-INFOHIST_PATH = '/Users/zoetomlinson/Desktop/Murray Lab/jarainfo/infohistology/'
+INFOHIST_PATH = '/Users/zoetomlinson/Desktop/MurrayLab/jarainfo/infohistology/'
 
 DATABASE_PATH = '/Volumes/NardociData/jarahubdata/figuresdata/'
 
