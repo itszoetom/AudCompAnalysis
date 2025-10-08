@@ -1,0 +1,3 @@
+import studyparams
+
+print(studyparams)
