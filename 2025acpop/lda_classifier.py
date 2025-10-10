@@ -10,7 +10,7 @@ from tqdm import tqdm
 studyparams = __import__('2025acpop.studyparams').studyparams
 
 # SETTINGS
-file_path = settings.FIGURES_DATA_PATH + "/" + studyparams.STUDY_NAME
+file_path = settings.FIGURES_DATA_PATH + "/" + '2025acpop'
 response_ranges = ["onset", "sustained", "offset"]
 stim_types = ["naturalSound", "AM", "pureTones"]
 colors = {
