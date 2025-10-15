@@ -7,10 +7,12 @@ from sklearn.model_selection import LeaveOneOut
 from jaratoolbox import settings
 import os
 from tqdm import tqdm
-studyparams = __import__('2025acpop.studyparams').studyparams
+import studyparams
+# studyparams = __import__('2025acpop.studyparams').studyparams
 
 # SETTINGS
-file_path = settings.FIGURES_DATA_PATH + "/" + '2025acpop'
+file_path = settings.FIGURES_DATA_PATH
+save_dir = settings.SAVE_PATH
 response_ranges = ["onset", "sustained", "offset"]
 stim_types = ["naturalSound", "AM", "pureTones"]
 colors = {
@@ -124,7 +126,6 @@ for stim in stim_types:
             fig_sub.update_yaxes(tickvals=list(range(len(uniqStims))), ticktext=labels, row=row_idx, col=col_idx)
 
     # Save subplot
-    save_dir = "/Users/zoetomlinson/Desktop/GitHub/neuronalDataResearch/Figures/Population Plots/lda_accuracy_grids/"
     os.makedirs(save_dir, exist_ok=True)
     fig_sub.update_layout(title=f"LDA Accuracy Heatmaps for {stim}", height=1400, width=1800)
     fig_sub.write_html(f"{save_dir}LDA_heatmaps_{stim}.html")
