@@ -2,13 +2,12 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.svm import LinearSVC
 from sklearn.model_selection import LeaveOneOut
 from jaratoolbox import settings
 import os
 from tqdm import tqdm
 import studyparams
-# studyparams = __import__('2025acpop.studyparams').studyparams
 
 # SETTINGS
 file_path = settings.FIGURES_DATA_PATH
@@ -21,7 +20,7 @@ colors = {
     'Primary auditory area': '#2ca02c',
     'Ventral auditory area': '#d62728'}
 
-lda = LinearDiscriminantAnalysis()
+svm = LinearSVC(max_iter=10000, dual='auto')
 boxplot_data = {}
 all_results = []
 
@@ -67,7 +66,7 @@ for stim in stim_types:
             brain_mask = brainRegionArray == brainRegion
             brain_resp_array = respArray[brain_mask, :]
 
-            lda_stim_vals = np.full((len(uniqStims), len(uniqStims)), np.nan)
+            svm_stim_vals = np.full((len(uniqStims), len(uniqStims)), np.nan)
             total_pairs = len(uniqStims) * (len(uniqStims) - 1)
 
             with tqdm(total=total_pairs, desc=f"{stim} | {respRange} | {brainRegion}", leave=True) as pbar:
@@ -91,12 +90,11 @@ for stim in stim_types:
 
                         loo = LeaveOneOut()
                         acc_list = []
-                        # TODO: shuffle the dataset and array here so that it's not just 11111110000000 yknow
                         for train_idx, test_idx in loo.split(X_pair, y_pair):
-                            lda.fit(X_pair[train_idx], y_pair[train_idx])
-                            acc_list.append(lda.score(X_pair[test_idx], y_pair[test_idx]))
+                            svm.fit(X_pair[train_idx], y_pair[train_idx])
+                            acc_list.append(svm.score(X_pair[test_idx], y_pair[test_idx]))
                         accuracy = np.mean(acc_list)
-                        lda_stim_vals[i1, i2] = accuracy
+                        svm_stim_vals[i1, i2] = accuracy
                         all_results.append({
                             "stim": stim,
                             "region": brainRegion,
@@ -109,15 +107,15 @@ for stim in stim_types:
 
             # Store upper-triangle for boxplots
             upper_tri = np.triu_indices(len(uniqStims), k=1)
-            boxplot_data[f"{brainRegion}_{stim}_{respRange}"] = lda_stim_vals[upper_tri].flatten()
+            boxplot_data[f"{brainRegion}_{stim}_{respRange}"] = svm_stim_vals[upper_tri].flatten()
 
             # Heatmap
             show_cb = (row_idx == 1 and col_idx == len(response_ranges))
             heatmap = go.Heatmap(
-                z=lda_stim_vals,
+                z=svm_stim_vals,
                 zmin=0, zmax=1,
                 colorscale='Viridis',
-                colorbar=dict(title="LDA Accuracy") if show_cb else None,
+                colorbar=dict(title="SVM Accuracy") if show_cb else None,
                 hovertemplate='Stim1: %{x}<br>Stim2: %{y}<br>Accuracy: %{z}<extra></extra>'
             )
             fig_sub.add_trace(heatmap, row=row_idx, col=col_idx)
@@ -127,12 +125,12 @@ for stim in stim_types:
 
     # Save subplot
     os.makedirs(save_dir, exist_ok=True)
-    fig_sub.update_layout(title=f"LDA Accuracy Heatmaps for {stim}", height=1400, width=1400)
-    fig_sub.write_html(f"{save_dir}LDA_heatmaps_{stim}.html")
+    fig_sub.update_layout(title=f"SVM Accuracy Heatmaps for {stim}", height=1400, width=1400)
+    fig_sub.write_html(f"{save_dir}SVM_heatmaps_{stim}.html")
     print(f"Saved {stim} heatmaps")
 
 # Save all results for later replotting
 results_df = pd.DataFrame(all_results)
-results_save_path = os.path.join(save_dir, "lda_pairwise_results.csv")
+results_save_path = os.path.join(save_dir, "svm_pairwise_results.csv")
 results_df.to_csv(results_save_path, index=False)
-print(f"Saved all pairwise LDA results to {results_save_path}")
+print(f"Saved all pairwise SVM results to {results_save_path}")
