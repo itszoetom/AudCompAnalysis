@@ -12,7 +12,7 @@ import studyparams
 
 # SETTINGS
 file_path = settings.FIGURES_DATA_PATH
-save_dir = settings.SAVE_PATH
+save_dir = settings.SAVE_PATH + "LDA"
 response_ranges = ["onset", "sustained", "offset"]
 stim_types = ["naturalSound", "AM", "pureTones"]
 colors = {

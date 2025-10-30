@@ -12,7 +12,7 @@ import seaborn as sns
 cv_results = []
 stimTypes = ["AM", "pureTones", "naturalSound"]
 response_ranges = ["onsetfr", "sustainedfr", "offsetfr"]
-figdataPath = os.path.join(settings.FIGURES_DATA_PATH, studyparams.STUDY_NAME)
+figdataPath = os.path.join(settings.FIGURES_DATA_PATH)
 
 for stimType in stimTypes:
     # Set trial info

@@ -9,7 +9,7 @@ import os
 studyparams = __import__('2025acpop.studyparams').studyparams
 
 # SETTINGS
-file_path = settings.FIGURES_DATA_PATH + "/" + studyparams.STUDY_NAME
+file_path = settings.FIGURES_DATA_PATH
 response_ranges = ["onset", "sustained", "offset"]
 stim_types = ["naturalSound", "AM", "pureTones"]
 colors = {
@@ -19,7 +19,7 @@ colors = {
     'Ventral auditory area': '#d62728'}
 
 # Create output directory
-output_dir = "/Users/zoetomlinson/Desktop/GitHub/neuronalDataResearch/Figures/Population Plots/"
+output_dir = "/Users/zoetomlinson/Desktop/MurrayLab/neuronalDataResearch/Figures/PCA/"
 os.makedirs(output_dir, exist_ok=True)
 
 
@@ -34,7 +34,7 @@ for stim in stim_types:
     print(f"\n=== Processing stim type: {stim} ===")
 
     # Load data
-    stim_arrays = np.load(f"{file_path}/fr_arrays_{stim}.npz", allow_pickle=True)
+    stim_arrays = np.load(f"{file_path}fr_arrays_{stim}.npz", allow_pickle=True)
     brainRegionArray = stim_arrays["brainRegionArray"]
     stimArray = stim_arrays["stimArray"][0, :]
     uniqRegions = np.unique(brainRegionArray)

@@ -11,7 +11,7 @@ from jaratoolbox import settings
 
 # %% Load data
 studyparams = __import__('2025acpop.studyparams').studyparams
-data_path = settings.SAVE_PATH + "LDA/lda_pairwise_results.csv"
+data_path = settings.SAVE_PATH + "SVM/svm_pairwise_results.csv"
 results_save_path = os.path.join(data_path)
 df = pd.read_csv(results_save_path)
 
@@ -19,7 +19,7 @@ response_ranges = ["onset", "sustained", "offset"]
 stim_types = ["naturalSound", "AM", "pureTones"]
 region_order_all = df["region"].unique().tolist()
 
-save_path = "/Users/zoetomlinson/Desktop/GitHub/neuronalDataResearch/Figures/Population Plots/LDA"
+save_path = "/Users/zoetomlinson/Desktop/MurrayLab/neuronalDataResearch/Figures/SVM"
 os.makedirs(save_path, exist_ok=True)
 
 
@@ -114,7 +114,7 @@ for stim in stim_types:
         )
         ax.set_title(f"{stim}: {window}")
         ax.set_xlabel("Brain Area")
-        ax.set_ylabel("LDA Accuracy" if ax_idx == 0 else "")
+        ax.set_ylabel("SVM Accuracy" if ax_idx == 0 else "")
 
         # Within vs Between (Mann-Whitney + Bonferroni)
         wb_pvals = []

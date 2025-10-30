@@ -1,19 +1,9 @@
-import os
 import numpy as np
 from numpy import ndarray
-from scipy.ndimage import gaussian_filter1d
-import plotly.colors as colors
-
-from jaratoolbox import celldatabase
-import matplotlib.pyplot as plt
-from jaratoolbox import settings
 from jaratoolbox import extraplots
 from jaratoolbox import spikesanalysis
 from jaratoolbox import ephyscore
-from jaratoolbox import behavioranalysis
-import sys
 studyparams = __import__('2025acpop.studyparams').studyparams
-import studyutils
 import pandas as pd
 import plotly
 import plotly.graph_objects as go
@@ -271,6 +261,7 @@ def calculate_fr_arrays(celldb:pd.DataFrame, stimType:str, stimVar:str, timeRang
         sessionID[indCell] = dbRow['date']
 
     return [basefr, onsetfr, sustainedfr, offsetfr, stimArray, brainRegion, mouseID, sessionID]
+
 
 def calc_d_prime(array1: np.ndarray, array2: np.ndarray) -> np.float32:
     """

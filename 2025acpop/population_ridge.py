@@ -14,17 +14,16 @@ from jaratoolbox import settings, celldatabase
 studyparams = __import__('2025acpop.studyparams').studyparams
 
 # SETTINGS
-neuron_threshold = 65
+neuron_threshold = 30
 stim_types = ["naturalSound", "AM", "pureTones"]
 response_ranges = ["onset", "sustained", "offset"]
 alphas = np.logspace(-3, 3, 20)
 n_splits = 5  # k-fold CV
 
-figdataPath = os.path.join(settings.FIGURES_DATA_PATH, studyparams.STUDY_NAME)
+figdataPath = os.path.join(settings.FIGURES_DATA_PATH)
 
 # Load session info from celldb
-dbPath = os.path.join(settings.DATABASE_PATH, studyparams.STUDY_NAME)
-dbCoordsFilename = os.path.join(dbPath, f'celldb_{studyparams.STUDY_NAME}_responsive_all_stims_index_new.h5')
+dbCoordsFilename = os.path.join(figdataPath, f'celldb_{studyparams.STUDY_NAME}_responsive_all_stims_index_new.h5')
 celldb = celldatabase.load_hdf(dbCoordsFilename)
 celldb['simpleSiteName'] = celldb['recordingSiteName'].str.split(',').apply(lambda x: x[0])
 areas_of_interest = ["Dorsal auditory area", "Primary auditory area", "Ventral auditory area", "Posterior auditory area"]
@@ -87,14 +86,9 @@ for stim in stim_types:
 
 # Save results
 df = pd.DataFrame(results)
-results_save_path = os.path.join(figdataPath, "ridge_results.csv")
+results_save_path = os.path.join(settings.SAVE_PATH, "Ridge Regression/ridge_results.csv")
 df.to_csv(results_save_path, index=False)
 print(f"Saved results to {results_save_path}")
-print(df.head())
-
-# Load saved results (or keep df from the main loop)
-results_save_path = os.path.join(figdataPath, "ridge_results.csv")
-df = pd.read_csv(results_save_path)
 
 # Config
 apply_bonferroni = True  # set True when want correction back on
@@ -178,12 +172,8 @@ if apply_bonferroni and not wilcox_df.empty:
     wilcox_df["p"] = multipletests(wilcox_df["p"], method="bonferroni")[1]  # overwrite with corrected p
 
 # Save stats for record
-mwu_df.to_csv(os.path.join(figdataPath, "mwu_results.csv"), index=False)
-wilcox_df.to_csv(os.path.join(figdataPath, "wilcoxon_results.csv"), index=False)
-
-# Visualization (two plots per sound)
-save_path = os.path.join("/Users/zoetomlinson/Desktop/GitHub/neuronalDataResearch/Figures/Population Plots")
-os.makedirs(save_path, exist_ok=True)
+mwu_df.to_csv(os.path.join(settings.SAVE_PATH, "Ridge Regression/mwu_results.csv"), index=False)
+wilcox_df.to_csv(os.path.join(settings.SAVE_PATH, "Ridge Regression/wilcoxon_results.csv"), index=False)
 
 for stim in stim_types:
     df_sub = df[df["stim_type"] == stim].copy()
@@ -240,7 +230,7 @@ for stim in stim_types:
     ax.set_title(f"R² Across Brain Areas and Spike Windows — {stim} with MWU test and Bonferroni correction")
     ax.grid(True, linestyle="--", alpha=0.4, axis='y')
     plt.tight_layout()
-    plt.savefig(os.path.join(save_path, f"{stim}_regions_vs_windows.png"), dpi=300)
+    plt.savefig(os.path.join(settings.SAVE_PATH, f"Ridge Regression/{stim}_regions_vs_windows.png"), dpi=300)
     plt.show()
 
     # Plot 2: X = Window, Hue = Brain Area (annotate Wilcoxon for ALL region pairs within each window)
@@ -290,5 +280,5 @@ for stim in stim_types:
     ax.set_title(f"R² Across Spike Windows and Brain Areas — {stim} with Wilcoxon test and Bonferroni correction")
     ax.grid(True, linestyle="--", alpha=0.4, axis='y')
     plt.tight_layout()
-    plt.savefig(os.path.join(save_path, f"{stim}_windows_vs_regions.png"), dpi=300)
+    plt.savefig(os.path.join(settings.SAVE_PATH, f"Ridge Regression/{stim}_windows_vs_regions.png"), dpi=300)
     plt.show()
