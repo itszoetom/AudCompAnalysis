@@ -19,7 +19,7 @@ response_ranges = ["onset", "sustained", "offset"]
 stim_types = ["naturalSound", "AM", "pureTones"]
 region_order_all = df["region"].unique().tolist()
 
-save_path = "/Users/zoetomlinson/Desktop/GitHub/neuronalDataResearch/Figures/Population Plots/LDA"
+save_path = "/Users/zoetomlinson/Desktop/MurrayLab/neuronalDataResearch/Figures/LDA"
 os.makedirs(save_path, exist_ok=True)
 
 

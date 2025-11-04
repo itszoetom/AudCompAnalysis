@@ -10,9 +10,8 @@ from jaratoolbox import settings
 
 # %% Load data
 studyparams = __import__('2025acpop.studyparams').studyparams
-file_path = os.path.join(settings.FIGURES_DATA_PATH)
-results_save_path = os.path.join(file_path, "svm_pairwise_results.csv")  # Updated for SVM
-df = pd.read_csv(results_save_path)
+file_path = settings.SAVE_PATH + "SVM/svm_pairwise_results.csv"
+df = pd.read_csv(file_path)
 
 response_ranges = ["onset", "sustained", "offset"]
 stim_types = ["naturalSound", "AM", "pureTones"]

@@ -9,7 +9,7 @@ from statsmodels.stats.multitest import multipletests
 from jaratoolbox import settings
 # %% Load data
 studyparams = __import__('2025acpop.studyparams').studyparams
-file_path = os.path.join(settings.FIGURES_DATA_PATH)
+file_path = "/Users/zoetomlinson/Desktop/MurrayLab/neuronalDataResearch/Figures/LDA"
 results_save_path = os.path.join(file_path, "lda_pairwise_results.csv")
 df = pd.read_csv(results_save_path)
 
@@ -18,7 +18,7 @@ stim_types = ["naturalSound", "AM", "pureTones"]
 region_order_all = df["region"].unique().tolist()
 window_order = response_ranges.copy()  # explicitly define
 
-save_path = "/Users/zoetomlinson/Desktop/MurrayLab/neuronalDataResearch/Figures/LDA"
+save_path = "/Users/zoetomlinson/Desktop/MurrayLab/neuronalDataResearch/Figures/LDA/"
 os.makedirs(save_path, exist_ok=True)
 
 apply_bonferroni = True
@@ -128,7 +128,7 @@ for stim in stim_types:
             ax.set_xlabel("Stim2")
             ax.set_ylabel("Stim1")
 
-    out_file = os.path.join(save_path, f"lda_accuracy_heatmaps/LDA_heatmaps_{stim}.png")
+    out_file = os.path.join(save_path, f"LDA_heatmaps_{stim}.png")
     plt.savefig(out_file, dpi=300)
     plt.close(fig)
     print(f"Saved heatmaps for {stim} → {out_file}")
@@ -215,7 +215,7 @@ for stim in stim_types:
     ax.set_title(f"LDA Accuracy by Brain Area & Spike Window - {stim} - MWU with Bonferroni")
     ax.grid(True, linestyle="--", alpha=0.4, axis='y')
     plt.tight_layout()
-    plt.savefig(os.path.join(save_path,f"boxplot_summaries/{stim}_regions_vs_windows.png"), dpi=300)
+    plt.savefig(os.path.join(save_path,f"{stim}_regions_vs_windows.png"), dpi=300)
     plt.show()
 
     # Plot 2: X=Window, Hue=Brain Area
@@ -258,5 +258,5 @@ for stim in stim_types:
     ax.set_title(f"LDA Accuracy by Spike Window & Brain Area - {stim} - Wilcoxon with Bonferroni")
     ax.grid(True, linestyle="--", alpha=0.4, axis='y')
     plt.tight_layout()
-    plt.savefig(os.path.join(save_path,f"boxplot_summaries/{stim}_windows_vs_regions.png"), dpi=300)
+    plt.savefig(os.path.join(save_path,f"{stim}_windows_vs_regions.png"), dpi=300)
     plt.show()
