@@ -4,11 +4,13 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from sklearn.svm import LinearSVC
 from sklearn.model_selection import LeaveOneOut
+from sklearn.decomposition import PCA
 from jaratoolbox import settings
 import os
 from tqdm import tqdm
 import studyparams
-#%% SETTINGS
+
+# SETTINGS
 file_path = settings.FIGURES_DATA_PATH
 save_dir = settings.SAVE_PATH
 response_ranges = ["onset", "sustained", "offset"]
@@ -19,7 +21,7 @@ colors = {
     'Primary auditory area': '#2ca02c',
     'Ventral auditory area': '#d62728'}
 
-hyperparameters = np.logspace(-5, 1, 20)
+hyperparameters = np.logspace(-8, 8, 20)
 boxplot_data = {}
 all_results = []
 
@@ -28,7 +30,7 @@ hyperparameter_results = {}
 
 # Dictionary to store hard pairs for visualization
 hard_pairs = {}
-#%%
+
 for stim in stim_types:
     print(f"\n=== Processing stim type: {stim} ===")
 
@@ -43,7 +45,7 @@ for stim in stim_types:
         soundCats = studyparams.SOUND_CATEGORIES
         nCategories = len(soundCats)
         nInstances = 4
-        stimVals = np.array([f"{soundCats[i]}_{j+1}" for i in range(nCategories) for j in range(nInstances)])
+        stimVals = np.array([f"{soundCats[i]}_{j + 1}" for i in range(nCategories) for j in range(nInstances)])
         labels = stimVals
     elif stim == 'pureTones':
         nTrials = 320
@@ -123,7 +125,7 @@ for stim in stim_types:
                 'accuracies': c_accuracies
             }
 
-# %% Create hyperparameter tuning plots
+# Create hyperparameter tuning plots
 print("\n=== Creating hyperparameter tuning plots ===")
 
 for stim in stim_types:
@@ -194,7 +196,7 @@ for stim in stim_types:
     fig.write_html(f"{save_dir}hyperparameter_tuning_{stim}.html")
     print(f"Saved hyperparameter tuning plot for {stim}")
 
-# %% Save hyperparameter results to CSV
+# Save hyperparameter results to CSV
 hp_results_list = []
 for key, data in hyperparameter_results.items():
     stim, region, window = key.split('_', 2)
@@ -212,7 +214,7 @@ hp_save_path = os.path.join(save_dir, "hyperparameter_tuning_results.csv")
 hp_df.to_csv(hp_save_path, index=False)
 print(f"\nSaved hyperparameter tuning results to {hp_save_path}")
 
-# %% Now run final analysis with best C for each condition
+# Now run final analysis with best C for each condition
 print("\n=== Running final analysis with optimal C values ===")
 
 for stim in stim_types:
@@ -267,6 +269,7 @@ for stim in stim_types:
                 best_c = 1.0  # Default
 
             svm_stim_vals = np.full((len(uniqStims), len(uniqStims)), np.nan)
+            pair_data = {}  # Store data for each pair
             total_pairs = len(uniqStims) * (len(uniqStims) - 1)
 
             with tqdm(total=total_pairs, desc=f"{stim} | {respRange} | {brainRegion} (C={best_c:.3f})",
@@ -289,6 +292,11 @@ for stim in stim_types:
                             pbar.update(1)
                             continue
 
+                        # Shuffle the dataset so trials are randomized (not all 0s then all 1s)
+                        shuffle_idx = np.random.permutation(len(y_pair))
+                        X_pair = X_pair[shuffle_idx]
+                        y_pair = y_pair[shuffle_idx]
+
                         loo = LeaveOneOut()
                         acc_list = []
                         for train_idx, test_idx in loo.split(X_pair, y_pair):
@@ -297,6 +305,17 @@ for stim in stim_types:
                             acc_list.append(svm.score(X_pair[test_idx], y_pair[test_idx]))
                         accuracy = np.mean(acc_list)
                         svm_stim_vals[i1, i2] = accuracy
+
+                        # Store pair data including X, y for visualization (only upper triangle)
+                        if i1 < i2:  # Only store upper triangle pairs
+                            pair_data[(i1, i2)] = {
+                                'X': X_pair,
+                                'y': y_pair,
+                                'accuracy': accuracy,
+                                'stim1': stim1,
+                                'stim2': stim2
+                            }
+
                         all_results.append({
                             "stim": stim,
                             "region": brainRegion,
@@ -308,9 +327,21 @@ for stim in stim_types:
                         })
                         pbar.update(1)
 
-                # Store upper-triangle for boxplots
-                upper_tri = np.triu_indices(len(uniqStims), k=1)
-                boxplot_data[f"{brainRegion}_{stim}_{respRange}"] = svm_stim_vals[upper_tri].flatten()
+            # Find hardest pair to classify (lowest accuracy in upper triangle)
+            upper_tri = np.triu_indices(len(uniqStims), k=1)
+            upper_tri_accuracies = svm_stim_vals[upper_tri]
+            if len(upper_tri_accuracies) > 0 and not np.all(np.isnan(upper_tri_accuracies)):
+                hardest_idx = np.nanargmin(upper_tri_accuracies)
+                hardest_pair = (upper_tri[0][hardest_idx], upper_tri[1][hardest_idx])
+                if hardest_pair in pair_data:  # Make sure we have the data
+                    hard_pairs[key] = {
+                        'pair_indices': hardest_pair,
+                        'data': pair_data[hardest_pair],
+                        'C': best_c
+                    }
+
+            # Store upper-triangle for boxplots
+            boxplot_data[f"{brainRegion}_{stim}_{respRange}"] = svm_stim_vals[upper_tri].flatten()
 
             # Heatmap
             show_cb = (row_idx == 1 and col_idx == len(response_ranges))
@@ -338,7 +369,7 @@ results_save_path = os.path.join(save_dir, "svm_pairwise_results.csv")
 results_df.to_csv(results_save_path, index=False)
 print(f"\nSaved all pairwise SVM results to {results_save_path}")
 
-# %% Create decision boundary visualizations for hard pairs
+# Create decision boundary visualizations for hard pairs
 print("\n=== Creating decision boundary visualizations ===")
 
 for stim in stim_types:
