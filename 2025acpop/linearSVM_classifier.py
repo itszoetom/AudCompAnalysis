@@ -8,8 +8,7 @@ from jaratoolbox import settings
 import os
 from tqdm import tqdm
 import studyparams
-
-# SETTINGS
+#%% SETTINGS
 file_path = settings.FIGURES_DATA_PATH
 save_dir = settings.SAVE_PATH
 response_ranges = ["onset", "sustained", "offset"]
@@ -20,13 +19,16 @@ colors = {
     'Primary auditory area': '#2ca02c',
     'Ventral auditory area': '#d62728'}
 
-hyperparameters = np.logspace(-8, 8, 20)
+hyperparameters = np.logspace(-5, 1, 20)
 boxplot_data = {}
 all_results = []
 
 # Dictionary to store hyperparameter tuning results
 hyperparameter_results = {}
 
+# Dictionary to store hard pairs for visualization
+hard_pairs = {}
+#%%
 for stim in stim_types:
     print(f"\n=== Processing stim type: {stim} ===")
 
@@ -93,6 +95,11 @@ for stim in stim_types:
                                 pbar.update(1)
                                 continue
 
+                            # Shuffle the dataset so trials are randomized (not all 0s then all 1s)
+                            shuffle_idx = np.random.permutation(len(y_pair))
+                            X_pair = X_pair[shuffle_idx]
+                            y_pair = y_pair[shuffle_idx]
+
                             loo = LeaveOneOut()
                             acc_list = []
                             for train_idx, test_idx in loo.split(X_pair, y_pair):
@@ -116,7 +123,7 @@ for stim in stim_types:
                 'accuracies': c_accuracies
             }
 
-# Create hyperparameter tuning plots
+# %% Create hyperparameter tuning plots
 print("\n=== Creating hyperparameter tuning plots ===")
 
 for stim in stim_types:
@@ -187,7 +194,7 @@ for stim in stim_types:
     fig.write_html(f"{save_dir}hyperparameter_tuning_{stim}.html")
     print(f"Saved hyperparameter tuning plot for {stim}")
 
-# Save hyperparameter results to CSV
+# %% Save hyperparameter results to CSV
 hp_results_list = []
 for key, data in hyperparameter_results.items():
     stim, region, window = key.split('_', 2)
@@ -205,7 +212,7 @@ hp_save_path = os.path.join(save_dir, "hyperparameter_tuning_results.csv")
 hp_df.to_csv(hp_save_path, index=False)
 print(f"\nSaved hyperparameter tuning results to {hp_save_path}")
 
-# Now run final analysis with best C for each condition
+# %% Now run final analysis with best C for each condition
 print("\n=== Running final analysis with optimal C values ===")
 
 for stim in stim_types:
@@ -330,3 +337,125 @@ results_df = pd.DataFrame(all_results)
 results_save_path = os.path.join(save_dir, "svm_pairwise_results.csv")
 results_df.to_csv(results_save_path, index=False)
 print(f"\nSaved all pairwise SVM results to {results_save_path}")
+
+# %% Create decision boundary visualizations for hard pairs
+print("\n=== Creating decision boundary visualizations ===")
+
+for stim in stim_types:
+    stim_arrays = np.load(f"{file_path}/fr_arrays_{stim}.npz", allow_pickle=True)
+    brainRegionArray = stim_arrays["brainRegionArray"]
+    uniqRegions = np.unique(brainRegionArray)
+
+    # Create subplot for decision boundaries
+    n_regions = len(uniqRegions)
+    n_windows = len(response_ranges)
+
+    fig_boundaries = make_subplots(
+        rows=n_regions, cols=n_windows,
+        subplot_titles=[f"{reg} - {rr}" for reg in uniqRegions for rr in response_ranges]
+    )
+
+    for row_idx, brainRegion in enumerate(uniqRegions, start=1):
+        for col_idx, respRange in enumerate(response_ranges, start=1):
+            key = f"{stim}_{brainRegion}_{respRange}"
+
+            if key not in hard_pairs:
+                continue
+
+            pair_info = hard_pairs[key]
+            X = pair_info['data']['X']
+            y = pair_info['data']['y']
+            best_c = pair_info['C']
+            stim1 = pair_info['data']['stim1']
+            stim2 = pair_info['data']['stim2']
+            accuracy = pair_info['data']['accuracy']
+
+            # Select two neurons with highest variance for visualization
+            # This gives us the most informative 2D slice of the data
+            neuron_vars = np.var(X, axis=0)
+            top_neurons = np.argsort(neuron_vars)[-2:]  # Indices of top 2 neurons
+            X_2d = X[:, top_neurons]
+
+            # Train SVM on just these 2 neurons for visualization
+            svm_2d = LinearSVC(max_iter=10000, dual='auto', C=best_c)
+            svm_2d.fit(X_2d, y)
+
+            # Create mesh for decision boundary
+            x_min, x_max = X_2d[:, 0].min() - 1, X_2d[:, 0].max() + 1
+            y_min, y_max = X_2d[:, 1].min() - 1, X_2d[:, 1].max() + 1
+            xx, yy = np.meshgrid(np.linspace(x_min, x_max, 100),
+                                 np.linspace(y_min, y_max, 100))
+            Z = svm_2d.decision_function(np.c_[xx.ravel(), yy.ravel()])
+            Z = Z.reshape(xx.shape)
+
+            # Add contour for decision boundary
+            fig_boundaries.add_trace(
+                go.Contour(
+                    x=np.linspace(x_min, x_max, 100),
+                    y=np.linspace(y_min, y_max, 100),
+                    z=Z,
+                    showscale=False,
+                    contours=dict(
+                        start=0,
+                        end=0,
+                        size=1,
+                        coloring='lines'
+                    ),
+                    line=dict(width=3, color='black'),
+                    name='Decision Boundary',
+                    showlegend=False,
+                    hoverinfo='skip'
+                ),
+                row=row_idx, col=col_idx
+            )
+
+            # Add points for stimulus 1
+            mask_stim1 = y == 0
+            fig_boundaries.add_trace(
+                go.Scatter(
+                    x=X_2d[mask_stim1, 0],
+                    y=X_2d[mask_stim1, 1],
+                    mode='markers',
+                    marker=dict(size=8, color='blue', symbol='circle'),
+                    name=f'Stim {stim1}',
+                    showlegend=(row_idx == 1 and col_idx == 1),
+                    hovertemplate=f'Stim {stim1}<br>Neuron {top_neurons[0]}: %{{x:.2f}} Hz<br>Neuron {top_neurons[1]}: %{{y:.2f}} Hz<extra></extra>'
+                ),
+                row=row_idx, col=col_idx
+            )
+
+            # Add points for stimulus 2
+            mask_stim2 = y == 1
+            fig_boundaries.add_trace(
+                go.Scatter(
+                    x=X_2d[mask_stim2, 0],
+                    y=X_2d[mask_stim2, 1],
+                    mode='markers',
+                    marker=dict(size=8, color='red', symbol='diamond'),
+                    name=f'Stim {stim2}',
+                    showlegend=(row_idx == 1 and col_idx == 1),
+                    hovertemplate=f'Stim {stim2}<br>Neuron {top_neurons[0]}: %{{x:.2f}} Hz<br>Neuron {top_neurons[1]}: %{{y:.2f}} Hz<extra></extra>'
+                ),
+                row=row_idx, col=col_idx
+            )
+
+            # Update axes with neuron indices
+            fig_boundaries.update_xaxes(title_text=f"Neuron {top_neurons[0]} (Hz)", row=row_idx, col=col_idx)
+            fig_boundaries.update_yaxes(title_text=f"Neuron {top_neurons[1]} (Hz)", row=row_idx, col=col_idx)
+
+            print(
+                f"{key}: Hardest pair = {stim1} vs {stim2}, Accuracy = {accuracy:.3f}, C = {best_c:.3f}, Neurons = {top_neurons}")
+
+    # Update layout
+    fig_boundaries.update_layout(
+        title=f"SVM Decision Boundaries for Hardest Pairs - {stim}<br><sub>Points colored by stimulus; black line = decision boundary; axes show firing rates of two most variable neurons</sub>",
+        height=400 * n_regions,
+        width=400 * n_windows,
+        showlegend=True
+    )
+
+    # Save figure
+    fig_boundaries.write_html(f"{save_dir}decision_boundaries_{stim}.html")
+    print(f"Saved decision boundary visualization for {stim}")
+
+print("\n=== Analysis complete ===")
