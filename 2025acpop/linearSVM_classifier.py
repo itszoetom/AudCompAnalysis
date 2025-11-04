@@ -21,7 +21,7 @@ colors = {
     'Primary auditory area': '#2ca02c',
     'Ventral auditory area': '#d62728'}
 
-hyperparameters = np.logspace(-8, 8, 20)
+hyperparameters = np.logspace(-6, 1, 30)
 boxplot_data = {}
 all_results = []
 
