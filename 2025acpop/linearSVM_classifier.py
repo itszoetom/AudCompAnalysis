@@ -41,7 +41,7 @@ for stim in stim_types:
         soundCats = studyparams.SOUND_CATEGORIES
         nCategories = len(soundCats)
         nInstances = 4
-        stimVals = np.array([f"{soundCats[i]}_{j+1}" for i in range(nCategories) for j in range(nInstances)])
+        stimVals = np.array([f"{soundCats[i]}_{j + 1}" for i in range(nCategories) for j in range(nInstances)])
         labels = stimVals
     elif stim == 'pureTones':
         nTrials = 320
@@ -89,21 +89,15 @@ for stim in stim_types:
                             X_pair = np.hstack([resp1, resp2]).T
                             y_pair = np.array([0] * resp1.shape[1] + [1] * resp2.shape[1])
 
-                            if len(np.unique(y_pair)) < 2:
-                                pbar.update(1)
-                                continue
-
                             # Shuffle the dataset so trials are randomized (not all 0s then all 1s)
                             shuffle_idx = np.random.permutation(len(y_pair))
                             X_pair = X_pair[shuffle_idx]
                             y_pair = y_pair[shuffle_idx]
 
+                            svm = LinearSVC(max_iter=10000, dual='auto', C=c_value)
                             loo = LeaveOneOut()
-                            acc_list = []
-                            for train_idx, test_idx in loo.split(X_pair, y_pair):
-                                svm = LinearSVC(max_iter=10000, dual='auto', C=c_value)
-                                svm.fit(X_pair[train_idx], y_pair[train_idx])
-                                acc_list.append(svm.score(X_pair[test_idx], y_pair[test_idx]))
+                            acc_list = [svm.fit(X_pair[tr], y_pair[tr]).score(X_pair[te], y_pair[te])
+                                        for tr, te in loo.split(X_pair)]
                             accuracy = np.mean(acc_list)
                             svm_stim_vals[i1, i2] = accuracy
                             pbar.update(1)
@@ -267,6 +261,9 @@ for stim in stim_types:
             svm_stim_vals = np.full((len(uniqStims), len(uniqStims)), np.nan)
             total_pairs = len(uniqStims) * (len(uniqStims) - 1)
 
+            # Track best and worst pairs for visualization
+            pair_accuracies = []
+
             with tqdm(total=total_pairs, desc=f"{stim} | {respRange} | {brainRegion} (C={best_c:.3f})",
                       leave=True) as pbar:
                 for i1, stim1 in enumerate(uniqStims):
@@ -283,7 +280,7 @@ for stim in stim_types:
                         X_pair = np.hstack([resp1, resp2]).T
                         y_pair = np.array([0] * resp1.shape[1] + [1] * resp2.shape[1])
 
-                        if len(np.unique(y_pair)) < 2:
+                        if len(np.unique(y_pair)) < 2 or X_pair.shape[0] < 10:
                             pbar.update(1)
                             continue
 
@@ -292,21 +289,20 @@ for stim in stim_types:
                         X_pair = X_pair[shuffle_idx]
                         y_pair = y_pair[shuffle_idx]
 
+                        svm = LinearSVC(max_iter=10000, dual='auto', C=best_c, tol=1e-3)
                         loo = LeaveOneOut()
-                        acc_list = []
-                        for train_idx, test_idx in loo.split(X_pair, y_pair):
-                            svm = LinearSVC(max_iter=10000, dual='auto', C=best_c)
-                            svm.fit(X_pair[train_idx], y_pair[train_idx])
-                            acc_list.append(svm.score(X_pair[test_idx], y_pair[test_idx]))
-
-                            # TODO: add a plot here that plots 2 different subplots of frequency pairs that the
-                            #  classifier did well and poorly on for each sound type and brain area.
-                            #  color by frequency so we can see how well the classifier is doing and add the
-                            #  tolerance line on both sides indicated by the tuned c parameter. don't do PCA, just
-                            #  chose two different neurons
+                        acc_list = [svm.fit(X_pair[tr], y_pair[tr]).score(X_pair[te], y_pair[te])
+                                    for tr, te in loo.split(X_pair)]
 
                         accuracy = np.mean(acc_list)
                         svm_stim_vals[i1, i2] = accuracy
+
+                        # Store for finding best/worst pairs
+                        pair_accuracies.append({
+                            'stim1': stim1, 'stim2': stim2, 'accuracy': accuracy,
+                            'X_pair': X_pair, 'y_pair': y_pair
+                        })
+
                         all_results.append({
                             "stim": stim,
                             "region": brainRegion,
@@ -322,8 +318,67 @@ for stim in stim_types:
                 upper_tri = np.triu_indices(len(uniqStims), k=1)
                 boxplot_data[f"{brainRegion}_{stim}_{respRange}"] = svm_stim_vals[upper_tri].flatten()
 
+            # Create visualization for best and worst classifier pairs
+            if len(pair_accuracies) >= 2 and brain_resp_array.shape[0] >= 2:
+                pair_accuracies.sort(key=lambda x: x['accuracy'])
+                worst_pair = pair_accuracies[0]
+                best_pair = pair_accuracies[-1]
+
+                # Select two neurons with highest variance
+                neuron_vars = np.var(brain_resp_array, axis=1)
+                neuron_idx = np.argsort(neuron_vars)[-2:]
+
+                fig_viz = make_subplots(rows=1, cols=2,
+                                        subplot_titles=[
+                                            f"Worst: {worst_pair['stim1']} vs {worst_pair['stim2']} (acc={worst_pair['accuracy']:.2f})",
+                                            f"Best: {best_pair['stim1']} vs {best_pair['stim2']} (acc={best_pair['accuracy']:.2f})"])
+
+                for col, pair in enumerate([worst_pair, best_pair], start=1):
+                    X_2d = pair['X_pair'][:, neuron_idx]
+                    y = pair['y_pair']
+
+                    # Train final SVM on full data
+                    svm_final = LinearSVC(max_iter=10000, dual='auto', C=best_c)
+                    svm_final.fit(X_2d, y)
+
+                    # Decision boundary
+                    w = svm_final.coef_[0]
+                    b = svm_final.intercept_[0]
+                    margin = 1 / np.linalg.norm(w)
+
+                    x_min, x_max = X_2d[:, 0].min() - 1, X_2d[:, 0].max() + 1
+                    xx = np.linspace(x_min, x_max, 100)
+                    yy_boundary = -(w[0] * xx + b) / w[1]
+                    yy_upper = yy_boundary + margin * np.sqrt(1 + (w[0] / w[1]) ** 2)
+                    yy_lower = yy_boundary - margin * np.sqrt(1 + (w[0] / w[1]) ** 2)
+
+                    # Plot data points
+                    fig_viz.add_trace(go.Scatter(x=X_2d[y == 0, 0], y=X_2d[y == 0, 1], mode='markers',
+                                                 marker=dict(color='blue', size=8), name=f'Stim {pair["stim1"]}',
+                                                 showlegend=(col == 1)), row=1, col=col)
+                    fig_viz.add_trace(go.Scatter(x=X_2d[y == 1, 0], y=X_2d[y == 1, 1], mode='markers',
+                                                 marker=dict(color='red', size=8), name=f'Stim {pair["stim2"]}',
+                                                 showlegend=(col == 1)), row=1, col=col)
+
+                    # Plot boundaries
+                    fig_viz.add_trace(go.Scatter(x=xx, y=yy_boundary, mode='lines',
+                                                 line=dict(color='black', width=2), name='Decision',
+                                                 showlegend=(col == 1)), row=1, col=col)
+                    fig_viz.add_trace(go.Scatter(x=xx, y=yy_upper, mode='lines',
+                                                 line=dict(color='gray', dash='dash'), name='Margin',
+                                                 showlegend=(col == 1)), row=1, col=col)
+                    fig_viz.add_trace(go.Scatter(x=xx, y=yy_lower, mode='lines',
+                                                 line=dict(color='gray', dash='dash'), showlegend=False), row=1,
+                                      col=col)
+
+                    fig_viz.update_xaxes(title_text=f'Neuron {neuron_idx[0]}', row=1, col=col)
+                    fig_viz.update_yaxes(title_text=f'Neuron {neuron_idx[1]}', row=1, col=col)
+
+                fig_viz.update_layout(height=500, width=1000,
+                                      title=f"Classifier Examples: {stim} - {brainRegion} - {respRange} (C={best_c:.3f})")
+                fig_viz.write_html(f"{save_dir}classifier_examples_{stim}_{brainRegion}_{respRange}.html")
+
             # Heatmap
-            # TODO: for AM and pure tones I don't want the integer encoded frequency, i want the actual hz frequency
             show_cb = (row_idx == 1 and col_idx == len(response_ranges))
             heatmap = go.Heatmap(
                 z=svm_stim_vals,
@@ -332,8 +387,8 @@ for stim in stim_types:
                 hovertemplate='Stim1: %{x}<br>Stim2: %{y}<br>Accuracy: %{z}<extra></extra>'
             )
             fig_sub.add_trace(heatmap, row=row_idx, col=col_idx)
-            fig_sub.update_xaxes(tickvals=list(range(len(uniqStims))), ticktext=labels, row=row_idx, col=col_idx)
-            fig_sub.update_yaxes(tickvals=list(range(len(uniqStims))), autorange='reversed', ticktext=labels,
+            fig_sub.update_xaxes(tickvals=list(range(len(uniqStims))), ticktext=uniqStims, row=row_idx, col=col_idx)
+            fig_sub.update_yaxes(tickvals=list(range(len(uniqStims))), autorange='reversed', ticktext=uniqStims,
                                  row=row_idx, col=col_idx)
 
     # Save subplot
