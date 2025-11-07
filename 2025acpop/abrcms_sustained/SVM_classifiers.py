@@ -22,7 +22,8 @@ colors = {
     'Primary auditory area': '#2ca02c',
     'Ventral auditory area': '#d62728'}
 
-hyperparameters = np.logspace(-5, 1, 20)
+linear_hyperparameters = np.logspace(-5, 1, 20)
+nonlinear_hyperparameters = np.logspace(1, 6, 20)
 max_neurons = 265  # Maximum neurons per brain region
 
 # Dictionary to store results for each SVM type
@@ -83,6 +84,12 @@ for svm_type in svm_types:
             # Store accuracies for each C value
             c_accuracies = []
             total_pairs = len(uniqStims) * (len(uniqStims) - 1)
+
+            # Select SVM type
+            if svm_type == 'linear':
+                hyperparameters = linear_hyperparameters
+            else:  # rbf
+                hyperparameters = nonlinear_hyperparameters
 
             with tqdm(total=total_pairs * len(hyperparameters),
                       desc=f"{stim} | {response_window} | {brainRegion} | {svm_type}", leave=True) as pbar:
