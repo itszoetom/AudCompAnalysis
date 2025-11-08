@@ -23,7 +23,7 @@ colors = {
     'Ventral auditory area': '#d62728'}
 
 linear_hyperparameters = np.logspace(-5, 1, 20)
-nonlinear_hyperparameters = np.logspace(1, 6, 20)
+nonlinear_hyperparameters = np.logspace(-3, 3, 20)
 max_neurons = 265  # Maximum neurons per brain region
 
 # Dictionary to store results for each SVM type
