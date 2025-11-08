@@ -370,7 +370,7 @@ for stim in stim_types:
                                              marker=dict(color='#d62728', size=8), name=f'Stim {pair["stim1"]}',
                                              showlegend=(viz_col == 1)), row=1, col=viz_col)
                 fig_viz.add_trace(go.Scatter(x=X_2d_scaled[y == 1, 0], y=X_2d_scaled[y == 1, 1], mode='markers',
-                                             marker=dict(color='#ff7f0e', size=8), name=f'Stim {pair["stim2"]}',
+                                             marker=dict(color='#1f77b4', size=8), name=f'Stim {pair["stim2"]}',
                                              showlegend=(viz_col == 1)), row=1, col=viz_col)
 
                 # Plot boundaries
