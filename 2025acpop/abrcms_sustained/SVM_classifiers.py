@@ -112,10 +112,8 @@ for stim in stim_types:
                         loo = LeaveOneOut()
                         acc_list = []
                         for tr, te in loo.split(X_pair):
-                            # Re-standardize for each fold using only training data
-                            scaler_fold = StandardScaler()
-                            X_train = scaler_fold.fit_transform(X_pair[tr])
-                            X_test = scaler_fold.transform(X_pair[te])
+                            X_train = X_pair[tr]
+                            X_test = X_pair[te]
                             acc = svm.fit(X_train, y_pair[tr]).score(X_test, y_pair[te])
                             acc_list.append(acc)
 
