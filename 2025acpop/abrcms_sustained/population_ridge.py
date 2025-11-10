@@ -12,8 +12,7 @@ from itertools import combinations
 from statsmodels.stats.multitest import multipletests
 from jaratoolbox import settings
 from tqdm import tqdm
-
-studyparams = __import__('2025acpop.studyparams').studyparams
+import studyparams
 
 # ===================== GLOBAL POSTER STYLE =====================
 plt.rcParams.update({
