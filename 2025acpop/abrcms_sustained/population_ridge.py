@@ -32,9 +32,7 @@ os.makedirs(save_dir, exist_ok=True)
 response_window = "sustained"  # Only sustained window
 stim_types = ["naturalSound", "AM", "pureTones"]
 # Use viridis colormap for brain areas
-from matplotlib import cm
-
-viridis = cm.get_cmap('viridis')
+viridis = plt.colormaps.get_cmap('viridis')
 colors = {
     'Dorsal': viridis(0.2),
     'Posterior': viridis(0.45),
@@ -253,10 +251,12 @@ for stim in stim_types:
     ax = sns.boxplot(
         x="brain_area", y="r2", data=df_sub,
         order=region_order,
+        hue="brain_area",
         palette=palette,
         showfliers=False,
         width=0.5,
-        linewidth=2.5
+        linewidth=2.5,
+        legend=False
     )
 
     # Add stripplot with matching colors
@@ -273,6 +273,7 @@ for stim in stim_types:
 
     # Horizontal x-axis labels with neuron counts
     xticklabels = [f"{area}\n(n={neuron_counts[area]} neurons)" for area in region_order]
+    ax.set_xticks(range(len(region_order)))
     ax.set_xticklabels(xticklabels, rotation=0, ha='center')
     ax.tick_params(axis='both', labelsize=24)
 
