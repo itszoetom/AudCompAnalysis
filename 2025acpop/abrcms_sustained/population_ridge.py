@@ -101,7 +101,7 @@ for stim in stim_types:
                 X_test_scaled = scaler.transform(X_test)
 
                 # Fit Ridge with cross-validation for alpha selection
-                ridge = RidgeCV(alphas=alphas, store_cv_values=False)
+                ridge = RidgeCV(alphas=alphas)
                 ridge.fit(X_train_scaled, y_train)
 
                 # Predict on test trial
