@@ -31,11 +31,15 @@ os.makedirs(save_dir, exist_ok=True)
 
 response_window = "sustained"  # Only sustained window
 stim_types = ["naturalSound", "AM", "pureTones"]
+# Use viridis colormap for brain areas
+from matplotlib import cm
+
+viridis = cm.get_cmap('viridis')
 colors = {
-    'Dorsal': '#1f77b4',
-    'Posterior': '#ff7f0e',
-    'Primary': '#2ca02c',
-    'Ventral': '#d62728'
+    'Dorsal': viridis(0.2),
+    'Posterior': viridis(0.45),
+    'Primary': viridis(0.65),
+    'Ventral': viridis(0.85)
 }
 
 alphas = np.logspace(-3, 3, 20)
@@ -89,6 +93,8 @@ for stim in stim_types:
         # 5-fold cross-validation
         kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
         r2_scores = []
+        all_y_test = []
+        all_y_pred = []
 
         print(f"      Running {n_splits}-fold CV...")
         for fold_idx, (train_index, test_index) in enumerate(kf.split(X)):
@@ -110,7 +116,44 @@ for stim in stim_types:
             # Calculate R² for this fold
             r2 = r2_score(y_test, y_pred)
             r2_scores.append(r2)
+
+            # Store predictions for plotting
+            all_y_test.extend(y_test)
+            all_y_pred.extend(y_pred)
+
             print(f"         Fold {fold_idx + 1}: R² = {r2:.3f}")
+
+        # Create predicted vs actual plot
+        mean_r2 = np.mean(r2_scores)
+        all_y_test = np.array(all_y_test)
+        all_y_pred = np.array(all_y_pred)
+
+        fig, ax = plt.subplots(figsize=(10, 10))
+        ax.scatter(all_y_test, all_y_pred, alpha=0.6, s=40, color='steelblue', edgecolors='black', linewidths=0.5)
+        min_val = min(all_y_test.min(), all_y_pred.min())
+        max_val = max(all_y_test.max(), all_y_pred.max())
+        ax.plot([min_val, max_val], [min_val, max_val], 'r--', linewidth=3, label='Perfect prediction')
+
+        ax.set_title(
+            f"{stim} — {brainRegion} — {response_window}\nMean R² = {mean_r2:.3f}",
+            fontsize=28,
+            pad=20,
+            weight='bold'
+        )
+        ax.set_xlabel("Actual", fontsize=24, labelpad=10, weight='bold')
+        ax.set_ylabel("Predicted", fontsize=24, labelpad=10, weight='bold')
+        ax.tick_params(axis='both', labelsize=20)
+        ax.set_xlim(min_val, max_val)
+        ax.set_ylim(min_val, max_val)
+        ax.legend(fontsize=18, loc='upper left')
+        ax.grid(True, linestyle='--', alpha=0.4)
+        ax.set_aspect('equal', adjustable='box')
+
+        pvadir = os.path.join(save_dir, "pred_vs_actual")
+        os.makedirs(pvadir, exist_ok=True)
+        fname = f"{stim}_{brainRegion.replace(' ', '_')}_{response_window}_pred_vs_actual.png"
+        fig.savefig(os.path.join(pvadir, fname), dpi=300, bbox_inches='tight')
+        plt.close(fig)
 
         # Store all fold R² values
         for fold_idx, r2_val in enumerate(r2_scores):
@@ -124,6 +167,7 @@ for stim in stim_types:
             })
 
         print(f"      Mean R²: {np.mean(r2_scores):.3f} ± {np.std(r2_scores):.3f}")
+        print(f"      Saved predicted vs actual plot")
 
 # ===================== SAVE RESULTS =====================
 df = pd.DataFrame(all_results)
@@ -220,7 +264,7 @@ for stim in stim_types:
         area_data = df_sub[df_sub["brain_area"] == area]["r2"]
         x_positions = np.random.normal(i, 0.04, size=len(area_data))
         ax.scatter(x_positions, area_data,
-                  alpha=0.7, s=80, color=region_colors[area], edgecolors='black', linewidths=1.5)
+                   alpha=0.7, s=80, color=region_colors[area], edgecolors='black', linewidths=1.5)
 
     ax.set_xlabel("Brain Area", fontsize=32, labelpad=15, weight='bold')
     ax.set_ylabel("R² (5-fold CV)", fontsize=32, labelpad=15, weight='bold')
