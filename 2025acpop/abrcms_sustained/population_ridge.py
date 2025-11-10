@@ -108,9 +108,7 @@ for stim in stim_types:
                 y_pred = ridge.predict(X_test_scaled)
 
                 # Calculate R² for this single prediction
-                # For single point R², use squared correlation approach
-                r2 = 1 - ((y_test[0] - y_pred[0]) ** 2) / ((y_test[0] - np.mean(y_train)) ** 2)
-                r2_scores_loo.append(r2)
+                r2_scores_loo.append(r2_score(y_test, y_pred))
 
                 pbar.update(1)
 
@@ -207,7 +205,7 @@ for stim in stim_types:
         x="brain_area", y="r2", data=df_sub,
         order=region_order,
         hue="brain_area",
-        palette="Set2",
+        palette=colors,
         showfliers=False,
         width=0.5,
         legend=False
