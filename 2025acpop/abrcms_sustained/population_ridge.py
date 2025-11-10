@@ -4,7 +4,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.linear_model import RidgeCV
-from sklearn.model_selection import LeaveOneOut
+from sklearn.model_selection import KFold
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import r2_score
 from scipy.stats import wilcoxon
@@ -32,18 +32,20 @@ os.makedirs(save_dir, exist_ok=True)
 response_window = "sustained"  # Only sustained window
 stim_types = ["naturalSound", "AM", "pureTones"]
 colors = {
-    'Dorsal auditory area': '#1f77b4',
-    'Posterior auditory area': '#ff7f0e',
-    'Primary auditory area': '#2ca02c',
-    'Ventral auditory area': '#d62728'
+    'Dorsal': '#1f77b4',
+    'Posterior': '#ff7f0e',
+    'Primary': '#2ca02c',
+    'Ventral': '#d62728'
 }
 
 alphas = np.logspace(-3, 3, 20)
 max_neurons = 265  # Maximum neurons per brain region to match SVM script
+n_splits = 5  # 5-fold cross-validation
 
-print(f"Ridge Regression Population Analysis (LOO CV)")
+print(f"Ridge Regression Population Analysis (5-Fold CV)")
 print(f"Response window: {response_window}")
 print(f"Max neurons per region: {max_neurons}")
+print(f"Number of folds: {n_splits}")
 print(f"Alpha range: {alphas.min():.3f} to {alphas.max():.3f}\n")
 
 # ===================== MAIN ANALYSIS =====================
@@ -84,49 +86,48 @@ for stim in stim_types:
         if stim in ["AM", "pureTones"]:
             y = np.log(y + 1e-8)
 
-        # Leave-one-out cross-validation
-        loo = LeaveOneOut()
-        n_trials = X.shape[0]
-        r2_scores_loo = []
+        # 5-fold cross-validation
+        kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
+        r2_scores = []
 
-        print(f"      Running LOO CV on {n_trials} trials...")
-        with tqdm(total=n_trials, desc=f"      LOO progress", leave=False) as pbar:
-            for train_index, test_index in loo.split(X):
-                X_train, X_test = X[train_index], X[test_index]
-                y_train, y_test = y[train_index], y[test_index]
+        print(f"      Running {n_splits}-fold CV...")
+        for fold_idx, (train_index, test_index) in enumerate(kf.split(X)):
+            X_train, X_test = X[train_index], X[test_index]
+            y_train, y_test = y[train_index], y[test_index]
 
-                # Standardize using only training data
-                scaler = StandardScaler()
-                X_train_scaled = scaler.fit_transform(X_train)
-                X_test_scaled = scaler.transform(X_test)
+            # Standardize using only training data
+            scaler = StandardScaler()
+            X_train_scaled = scaler.fit_transform(X_train)
+            X_test_scaled = scaler.transform(X_test)
 
-                # Fit Ridge with cross-validation for alpha selection
-                ridge = RidgeCV(alphas=alphas)
-                ridge.fit(X_train_scaled, y_train)
+            # Fit Ridge with cross-validation for alpha selection
+            ridge = RidgeCV(alphas=alphas)
+            ridge.fit(X_train_scaled, y_train)
 
-                # Predict on test trial
-                y_pred = ridge.predict(X_test_scaled)
+            # Predict on test fold
+            y_pred = ridge.predict(X_test_scaled)
 
-                # Calculate R² for this single prediction
-                r2_scores_loo.append(r2_score(y_test, y_pred))
+            # Calculate R² for this fold
+            r2 = r2_score(y_test, y_pred)
+            r2_scores.append(r2)
+            print(f"         Fold {fold_idx + 1}: R² = {r2:.3f}")
 
-                pbar.update(1)
-
-        # Store all LOO R² values
-        for r2_val in r2_scores_loo:
+        # Store all fold R² values
+        for fold_idx, r2_val in enumerate(r2_scores):
             all_results.append({
                 "stim_type": stim,
                 "brain_area": brainRegion,
                 "window": response_window,
                 "r2": r2_val,
-                "n_neurons": brain_resp_array.shape[0]
+                "n_neurons": brain_resp_array.shape[0],
+                "fold": fold_idx + 1
             })
 
-        print(f"      Mean R²: {np.mean(r2_scores_loo):.3f} ± {np.std(r2_scores_loo):.3f}")
+        print(f"      Mean R²: {np.mean(r2_scores):.3f} ± {np.std(r2_scores):.3f}")
 
 # ===================== SAVE RESULTS =====================
 df = pd.DataFrame(all_results)
-results_save_path = os.path.join(save_dir, "ridge_results_population_loo.csv")
+results_save_path = os.path.join(save_dir, "ridge_results_population_5fold.csv")
 df.to_csv(results_save_path, index=False)
 print(f"\nSaved results to {results_save_path}")
 
@@ -168,7 +169,7 @@ if apply_bonferroni and not wilcox_df.empty:
 else:
     wilcox_df["p_corrected"] = wilcox_df["p"]
 
-wilcox_save_path = os.path.join(save_dir, "wilcoxon_results_population_loo.csv")
+wilcox_save_path = os.path.join(save_dir, "wilcoxon_results_population_5fold.csv")
 wilcox_df.to_csv(wilcox_save_path, index=False)
 print(f"Saved statistical results to {wilcox_save_path}")
 
@@ -196,33 +197,38 @@ for stim in stim_types:
     region_order_short = [r.replace(" auditory area", "") for r in region_order_all]
     region_order = [r for r in region_order_short if r in df_sub["brain_area"].unique()]
 
-    # Count trials per brain area
-    trial_counts = df_sub.groupby("brain_area").size()
+    # Get neuron counts per brain area
+    neuron_counts = df_sub.groupby("brain_area")["n_neurons"].first()
+
+    # Create color palette for regions
+    region_colors = {r: colors.get(r, '#808080') for r in region_order}
+    palette = [region_colors[r] for r in region_order]
 
     # Create figure
     plt.figure(figsize=(14, 12))
     ax = sns.boxplot(
         x="brain_area", y="r2", data=df_sub,
         order=region_order,
-        hue="brain_area",
-        palette=colors,
+        palette=palette,
         showfliers=False,
         width=0.5,
-        legend=False
-    )
-    sns.stripplot(
-        x="brain_area", y="r2", data=df_sub,
-        order=region_order,
-        dodge=False, alpha=0.4, size=6, color='black'  # More transparent due to many points
+        linewidth=2.5
     )
 
+    # Add stripplot with matching colors
+    for i, area in enumerate(region_order):
+        area_data = df_sub[df_sub["brain_area"] == area]["r2"]
+        x_positions = np.random.normal(i, 0.04, size=len(area_data))
+        ax.scatter(x_positions, area_data,
+                  alpha=0.7, s=80, color=region_colors[area], edgecolors='black', linewidths=1.5)
+
     ax.set_xlabel("Brain Area", fontsize=32, labelpad=15, weight='bold')
-    ax.set_ylabel("R² (LOO CV per trial)", fontsize=32, labelpad=15, weight='bold')
+    ax.set_ylabel("R² (5-fold CV)", fontsize=32, labelpad=15, weight='bold')
     ax.set_title(f"Ridge Regression Performance — {stim}",
                  fontsize=36, pad=25, weight='bold')
 
-    # Horizontal x-axis labels with trial counts
-    xticklabels = [f"{area}\n(n={trial_counts[area]} trials)" for area in region_order]
+    # Horizontal x-axis labels with neuron counts
+    xticklabels = [f"{area}\n(n={neuron_counts[area]} neurons)" for area in region_order]
     ax.set_xticklabels(xticklabels, rotation=0, ha='center')
     ax.tick_params(axis='both', labelsize=24)
 
@@ -257,7 +263,7 @@ for stim in stim_types:
 
     ax.grid(True, linestyle="--", alpha=0.3, axis='y')
     plt.tight_layout()
-    out_path = os.path.join(save_dir, f"{stim}_brain_areas_population_loo_boxplot.png")
+    out_path = os.path.join(save_dir, f"{stim}_brain_areas_population_5fold_boxplot.png")
     plt.savefig(out_path, dpi=300, bbox_inches='tight')
     plt.close()
     print(f"Saved plot: {out_path}")
