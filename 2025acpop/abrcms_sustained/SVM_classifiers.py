@@ -68,20 +68,23 @@ def subsample_neurons(brain_resp_array, max_neurons, seed=42):
 
 
 def run_svm_pairwise(resp1, resp2, c_value):
-    """Run SVM classification for a pair of stimuli with leave-one-out cross-validation."""
-    X_pair = np.hstack([resp1, resp2]).T
-    y_pair = np.array([0] * resp1.shape[1] + [1] * resp2.shape[1]) # array of 1111100000 for classification
+    """
+    Run SVM classification for a pair of stimuli with leave-one-out cross-validation.
 
-    # Shuffle the dataset
+    IMPORTANT CHANGE:
+    resp1 and resp2 are assumed to ALREADY be standardized in a common space.
+    We do NOT fit a StandardScaler here anymore.
+    """
+    # shape: neurons x trials
+    X_pair = np.hstack([resp1, resp2]).T  # trials x features
+    y_pair = np.array([0] * resp1.shape[1] + [1] * resp2.shape[1])
+
+    # Shuffle
     shuffle_idx = np.random.permutation(len(y_pair))
     X_pair = X_pair[shuffle_idx]
     y_pair = y_pair[shuffle_idx]
 
-    # Standardize
-    scaler = StandardScaler()
-    X_pair = scaler.fit_transform(X_pair)
-
-    svm = LinearSVC(max_iter=10000,  C=c_value)
+    svm = LinearSVC(max_iter=10000, C=c_value)
     loo = LeaveOneOut()
     acc_list = []
     for tr, te in loo.split(X_pair):
@@ -94,8 +97,12 @@ def run_svm_pairwise(resp1, resp2, c_value):
     return accuracy, X_pair, y_pair
 
 
-def compute_pairwise_accuracies(brain_resp_array, stimArray, uniqStims, c_value, desc=""):
-    """Compute pairwise SVM accuracies for all stimulus pairs."""
+def compute_pairwise_accuracies(brain_resp_array_std, stimArray, uniqStims, c_value, desc=""):
+    """
+    Compute pairwise SVM accuracies for all stimulus pairs.
+
+    brain_resp_array_std: ALREADY standardized (neurons x trials) for this region+stim set.
+    """
     svm_stim_vals = np.full((len(uniqStims), len(uniqStims)), np.nan)
     total_pairs = len(uniqStims) * (len(uniqStims) - 1)
     pair_accuracies = []
@@ -103,14 +110,14 @@ def compute_pairwise_accuracies(brain_resp_array, stimArray, uniqStims, c_value,
     with tqdm(total=total_pairs, desc=desc, leave=True) as pbar:
         for i1, stim1 in enumerate(uniqStims):
             mask1 = stimArray == stim1
-            resp1 = brain_resp_array[:, mask1]
+            resp1 = brain_resp_array_std[:, mask1]
 
             for i2, stim2 in enumerate(uniqStims):
                 if i1 == i2:
                     pbar.update(1)
                     continue
                 mask2 = stimArray == stim2
-                resp2 = brain_resp_array[:, mask2]
+                resp2 = brain_resp_array_std[:, mask2]
 
                 accuracy, X_pair, y_pair = run_svm_pairwise(resp1, resp2, c_value)
                 svm_stim_vals[i1, i2] = accuracy
@@ -124,14 +131,15 @@ def compute_pairwise_accuracies(brain_resp_array, stimArray, uniqStims, c_value,
     return svm_stim_vals, pair_accuracies
 
 
-def create_classifier_visualization(brain_resp_array, pair_accuracies, stim, brainRegion,
+def create_classifier_visualization(brain_resp_array_std, pair_accuracies, stim, brainRegion,
                                     response_window, best_c, save_dir):
     """Create visualization of best and worst classifier examples."""
     pair_accuracies.sort(key=lambda x: x['accuracy'])
     worst_pair = pair_accuracies[0]
     best_pair = pair_accuracies[-1]
 
-    neuron_vars = np.var(brain_resp_array, axis=1)
+    # variance from standardized data
+    neuron_vars = np.var(brain_resp_array_std, axis=1)
     neuron_idx = np.argsort(neuron_vars)[-2:]  # top 2 var neurons
 
     fig_viz = make_subplots(
@@ -143,9 +151,11 @@ def create_classifier_visualization(brain_resp_array, pair_accuracies, stim, bra
     )
 
     for viz_col, pair in enumerate([worst_pair, best_pair], start=1):
+        # pair['X_pair'] is trials x features (already in standardized space for those trials)
         X_2d = pair['X_pair'][:, neuron_idx]
         y = pair['y_pair']
 
+        # we can re-standardize just for plotting 2D
         scaler_viz = StandardScaler()
         X_2d_scaled = scaler_viz.fit_transform(X_2d)
 
@@ -170,7 +180,6 @@ def create_classifier_visualization(brain_resp_array, pair_accuracies, stim, bra
         yy_upper = yy_boundary + margin * slope_factor
         yy_lower = yy_boundary - margin * slope_factor
 
-        # Plot points
         fig_viz.add_trace(
             go.Scatter(
                 x=X_2d_scaled[y == 0, 0],
@@ -194,7 +203,7 @@ def create_classifier_visualization(brain_resp_array, pair_accuracies, stim, bra
             row=1, col=viz_col
         )
 
-        # Decision boundary and margins
+        # Decision boundary + margins
         fig_viz.add_trace(
             go.Scatter(
                 x=xx, y=yy_boundary,
@@ -259,6 +268,11 @@ for stim in stim_types:
         brain_resp_array = respArray[brain_mask, :]
         brain_resp_array = subsample_neurons(brain_resp_array, max_neurons)
 
+        # GLOBAL STANDARDIZATION FOR THIS REGION + STIM SET
+        # brain_resp_array: neurons x trials
+        scaler = StandardScaler()
+        brain_resp_array_std = scaler.fit_transform(brain_resp_array.T).T  # standardize over trials, keep neurons in rows
+
         c_accuracies = []
         total_pairs = len(uniqStims) * (len(uniqStims) - 1)
 
@@ -270,14 +284,14 @@ for stim in stim_types:
 
                 for i1, stim1 in enumerate(uniqStims):
                     mask1 = stimArray == stim1
-                    resp1 = brain_resp_array[:, mask1]
+                    resp1 = brain_resp_array_std[:, mask1]
 
                     for i2, stim2 in enumerate(uniqStims):
                         if i1 == i2:
                             pbar.update(1)
                             continue
                         mask2 = stimArray == stim2
-                        resp2 = brain_resp_array[:, mask2]
+                        resp2 = brain_resp_array_std[:, mask2]
 
                         accuracy, _, _ = run_svm_pairwise(resp1, resp2, c_value)
                         svm_stim_vals[i1, i2] = accuracy
@@ -291,7 +305,9 @@ for stim in stim_types:
         key = f"{stim}_{brainRegion}_{response_window}"
         hyperparameter_results[key] = {
             'c_values': hyperparameters,
-            'accuracies': c_accuracies
+            'accuracies': c_accuracies,
+            # save scaler params if you want to reuse later
+            # but we can just recompute in final phase the same way
         }
 
 # ================== CREATE HYPERPARAMETER TUNING PLOTS ==================
@@ -401,6 +417,10 @@ for stim in stim_types:
         brain_resp_array = respArray[brain_mask, :]
         brain_resp_array = subsample_neurons(brain_resp_array, max_neurons)
 
+        # standardize globally for this region+stim set (same as tuning phase)
+        scaler = StandardScaler()
+        brain_resp_array_std = scaler.fit_transform(brain_resp_array.T).T
+
         # Get best C
         key = f"{stim}_{brainRegion}_{response_window}"
         if key in hyperparameter_results:
@@ -411,7 +431,7 @@ for stim in stim_types:
             best_c = 1.0
 
         svm_stim_vals, pair_accuracies = compute_pairwise_accuracies(
-            brain_resp_array, stimArray, uniqStims, best_c,
+            brain_resp_array_std, stimArray, uniqStims, best_c,
             desc=f"{stim} | {response_window} | {brainRegion} (C={best_c:.3f})"
         )
 
@@ -429,7 +449,7 @@ for stim in stim_types:
 
         # Create classifier visualization
         create_classifier_visualization(
-            brain_resp_array, pair_accuracies, stim, brainRegion,
+            brain_resp_array_std, pair_accuracies, stim, brainRegion,
             response_window, best_c, save_dir
         )
 
