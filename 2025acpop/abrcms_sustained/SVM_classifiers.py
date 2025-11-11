@@ -15,7 +15,7 @@ file_path = settings.FIGURES_DATA_PATH
 save_dir = settings.SAVE_PATH
 os.makedirs(save_dir, exist_ok=True)
 
-response_window = "sustained"  # Only sustained window
+response_window = "sustained"
 stim_types = ["naturalSound", "AM", "pureTones"]
 colors = {
     'Dorsal auditory area': '#1f77b4',
@@ -26,16 +26,12 @@ colors = {
 
 hyperparameters = np.logspace(-2, 4, 20)
 all_results = []
-max_neurons = 265  # Maximum neurons per brain region
-
-# Dictionary to store hyperparameter tuning results
+max_neurons = 265
 hyperparameter_results = {}
 
-# ================== HYPERPARAMETER TUNING PHASE ==================
-for stim in stim_types:
-    print(f"\n=== Processing stim type: {stim} ===")
 
-    # Stimulus setup
+def get_stim_config(stim):
+    """Get stimulus-specific configuration."""
     if stim == 'AM':
         nTrials = 220
         nCategories = 11
@@ -54,6 +50,202 @@ for stim in stim_types:
         stimVals = np.arange(nCategories)
         labels = [str(i) for i in range(nCategories)]
 
+    return nTrials, nCategories, stimVals, labels
+
+
+def subsample_neurons(brain_resp_array, max_neurons, seed=42):
+    """Randomly subsample neurons if there are too many."""
+    n_neurons = brain_resp_array.shape[0]
+    if n_neurons > max_neurons:
+        np.random.seed(seed)
+        selected_neurons = np.random.choice(n_neurons, max_neurons, replace=False)
+        brain_resp_array = brain_resp_array[selected_neurons, :]
+        print(f"      Subsampled from {n_neurons} to {max_neurons} neurons")
+    else:
+        print(f"      Using all {n_neurons} neurons")
+
+    return brain_resp_array
+
+
+def run_svm_pairwise(resp1, resp2, c_value):
+    """Run SVM classification for a pair of stimuli with leave-one-out cross-validation."""
+    X_pair = np.hstack([resp1, resp2]).T
+    y_pair = np.array([0] * resp1.shape[1] + [1] * resp2.shape[1]) # array of 1111100000 for classification
+
+    # Shuffle the dataset
+    shuffle_idx = np.random.permutation(len(y_pair))
+    X_pair = X_pair[shuffle_idx]
+    y_pair = y_pair[shuffle_idx]
+
+    # Standardize
+    scaler = StandardScaler()
+    X_pair = scaler.fit_transform(X_pair)
+
+    svm = LinearSVC(max_iter=10000,  C=c_value)
+    loo = LeaveOneOut()
+    acc_list = []
+    for tr, te in loo.split(X_pair):
+        X_train = X_pair[tr]
+        X_test = X_pair[te]
+        acc = svm.fit(X_train, y_pair[tr]).score(X_test, y_pair[te])
+        acc_list.append(acc)
+
+    accuracy = np.mean(acc_list)
+    return accuracy, X_pair, y_pair
+
+
+def compute_pairwise_accuracies(brain_resp_array, stimArray, uniqStims, c_value, desc=""):
+    """Compute pairwise SVM accuracies for all stimulus pairs."""
+    svm_stim_vals = np.full((len(uniqStims), len(uniqStims)), np.nan)
+    total_pairs = len(uniqStims) * (len(uniqStims) - 1)
+    pair_accuracies = []
+
+    with tqdm(total=total_pairs, desc=desc, leave=True) as pbar:
+        for i1, stim1 in enumerate(uniqStims):
+            mask1 = stimArray == stim1
+            resp1 = brain_resp_array[:, mask1]
+
+            for i2, stim2 in enumerate(uniqStims):
+                if i1 == i2:
+                    pbar.update(1)
+                    continue
+                mask2 = stimArray == stim2
+                resp2 = brain_resp_array[:, mask2]
+
+                accuracy, X_pair, y_pair = run_svm_pairwise(resp1, resp2, c_value)
+                svm_stim_vals[i1, i2] = accuracy
+
+                pair_accuracies.append({
+                    'stim1': stim1, 'stim2': stim2, 'accuracy': accuracy,
+                    'X_pair': X_pair, 'y_pair': y_pair
+                })
+                pbar.update(1)
+
+    return svm_stim_vals, pair_accuracies
+
+
+def create_classifier_visualization(brain_resp_array, pair_accuracies, stim, brainRegion,
+                                    response_window, best_c, save_dir):
+    """Create visualization of best and worst classifier examples."""
+    pair_accuracies.sort(key=lambda x: x['accuracy'])
+    worst_pair = pair_accuracies[0]
+    best_pair = pair_accuracies[-1]
+
+    neuron_vars = np.var(brain_resp_array, axis=1)
+    neuron_idx = np.argsort(neuron_vars)[-2:]  # top 2 var neurons
+
+    fig_viz = make_subplots(
+        rows=1, cols=2,
+        subplot_titles=[
+            f"Worst: {worst_pair['stim1']} vs {worst_pair['stim2']} (acc={worst_pair['accuracy']:.2f})",
+            f"Best: {best_pair['stim1']} vs {best_pair['stim2']} (acc={best_pair['accuracy']:.2f})"
+        ]
+    )
+
+    for viz_col, pair in enumerate([worst_pair, best_pair], start=1):
+        X_2d = pair['X_pair'][:, neuron_idx]
+        y = pair['y_pair']
+
+        scaler_viz = StandardScaler()
+        X_2d_scaled = scaler_viz.fit_transform(X_2d)
+
+        svm_final = LinearSVC(max_iter=10000, C=best_c)
+        svm_final.fit(X_2d_scaled, y)
+
+        w = svm_final.coef_[0]
+        b = svm_final.intercept_[0]
+        norm_w = np.linalg.norm(w)
+        margin = 1.0 / norm_w if norm_w > 0 else 0.0
+
+        x_min, x_max = X_2d_scaled[:, 0].min() - 1, X_2d_scaled[:, 0].max() + 1
+        xx = np.linspace(x_min, x_max, 200)
+
+        if abs(w[1]) < 1e-6:
+            yy_boundary = np.full_like(xx, -b / (w[1] + 1e-6))
+            slope_factor = 1.0
+        else:
+            yy_boundary = -(w[0] * xx + b) / w[1]
+            slope_factor = np.sqrt(1 + (w[0] / w[1]) ** 2)
+
+        yy_upper = yy_boundary + margin * slope_factor
+        yy_lower = yy_boundary - margin * slope_factor
+
+        # Plot points
+        fig_viz.add_trace(
+            go.Scatter(
+                x=X_2d_scaled[y == 0, 0],
+                y=X_2d_scaled[y == 0, 1],
+                mode='markers',
+                marker=dict(color='#31688e', size=8),
+                name='Stim 1',
+                showlegend=(viz_col == 1)
+            ),
+            row=1, col=viz_col
+        )
+        fig_viz.add_trace(
+            go.Scatter(
+                x=X_2d_scaled[y == 1, 0],
+                y=X_2d_scaled[y == 1, 1],
+                mode='markers',
+                marker=dict(color='#35b779', size=8),
+                name='Stim 2',
+                showlegend=(viz_col == 1)
+            ),
+            row=1, col=viz_col
+        )
+
+        # Decision boundary and margins
+        fig_viz.add_trace(
+            go.Scatter(
+                x=xx, y=yy_boundary,
+                mode='lines',
+                line=dict(color='black', width=2),
+                name='Decision boundary',
+                showlegend=(viz_col == 1)
+            ),
+            row=1, col=viz_col
+        )
+        fig_viz.add_trace(
+            go.Scatter(
+                x=xx, y=yy_upper,
+                mode='lines',
+                line=dict(color='black', width=1, dash='dot'),
+                name='Margin',
+                showlegend=False
+            ),
+            row=1, col=viz_col
+        )
+        fig_viz.add_trace(
+            go.Scatter(
+                x=xx, y=yy_lower,
+                mode='lines',
+                line=dict(color='black', width=1, dash='dot'),
+                name='Margin',
+                showlegend=False
+            ),
+            row=1, col=viz_col
+        )
+
+        fig_viz.update_xaxes(title_text=f'Neuron {neuron_idx[0]} (scaled)', row=1, col=viz_col)
+        fig_viz.update_yaxes(title_text=f'Neuron {neuron_idx[1]} (scaled)', row=1, col=viz_col)
+
+    fig_viz.update_layout(
+        height=500,
+        width=1000,
+        title=f"Classifier Examples: {stim} - {brainRegion} (C={best_c:.3f})"
+    )
+    fig_viz.write_html(os.path.join(
+        save_dir,
+        f"classifier_examples_{stim}_{brainRegion}_{response_window}.html"
+    ))
+
+
+# ================== HYPERPARAMETER TUNING PHASE ==================
+for stim in stim_types:
+    print(f"\n=== Processing stim type: {stim} ===")
+
+    nTrials, nCategories, stimVals, labels = get_stim_config(stim)
+
     stim_arrays = np.load(os.path.join(file_path, f"fr_arrays_{stim}.npz"), allow_pickle=True)
     brainRegionArray = stim_arrays["brainRegionArray"]
     stimArray = stim_arrays["stimArray"][0, :]
@@ -65,16 +257,7 @@ for stim in stim_types:
         print(f"   -> {response_window} - {brainRegion}")
         brain_mask = brainRegionArray == brainRegion
         brain_resp_array = respArray[brain_mask, :]
-
-        # Randomly select up to max_neurons neurons
-        n_neurons = brain_resp_array.shape[0]
-        if n_neurons > max_neurons:
-            np.random.seed(42)  # For reproducibility
-            selected_neurons = np.random.choice(n_neurons, max_neurons, replace=False)
-            brain_resp_array = brain_resp_array[selected_neurons, :]
-            print(f"      Subsampled from {n_neurons} to {max_neurons} neurons")
-        else:
-            print(f"      Using all {n_neurons} neurons")
+        brain_resp_array = subsample_neurons(brain_resp_array, max_neurons)
 
         c_accuracies = []
         total_pairs = len(uniqStims) * (len(uniqStims) - 1)
@@ -87,7 +270,7 @@ for stim in stim_types:
 
                 for i1, stim1 in enumerate(uniqStims):
                     mask1 = stimArray == stim1
-                    resp1 = brain_resp_array[:, mask1]  # neurons, trials
+                    resp1 = brain_resp_array[:, mask1]
 
                     for i2, stim2 in enumerate(uniqStims):
                         if i1 == i2:
@@ -96,32 +279,10 @@ for stim in stim_types:
                         mask2 = stimArray == stim2
                         resp2 = brain_resp_array[:, mask2]
 
-                        X_pair = np.hstack([resp1, resp2]).T
-                        y_pair = np.array([0] * resp1.shape[1] + [1] * resp2.shape[1])
-
-                        # Shuffle the dataset
-                        shuffle_idx = np.random.permutation(len(y_pair))
-                        X_pair = X_pair[shuffle_idx]
-                        y_pair = y_pair[shuffle_idx]
-
-                        # Standardize
-                        scaler = StandardScaler()
-                        X_pair = scaler.fit_transform(X_pair)
-
-                        svm = LinearSVC(max_iter=10000, dual='auto', C=c_value)
-                        loo = LeaveOneOut()
-                        acc_list = []
-                        for tr, te in loo.split(X_pair):
-                            X_train = X_pair[tr]
-                            X_test = X_pair[te]
-                            acc = svm.fit(X_train, y_pair[tr]).score(X_test, y_pair[te])
-                            acc_list.append(acc)
-
-                        accuracy = np.mean(acc_list)
+                        accuracy, _, _ = run_svm_pairwise(resp1, resp2, c_value)
                         svm_stim_vals[i1, i2] = accuracy
                         pbar.update(1)
 
-                # Average the accuracy values across all stimulus pairs in the upper triangle
                 upper_tri = np.triu_indices(len(uniqStims), k=1)
                 upper_tri_accuracies = svm_stim_vals[upper_tri]
                 avg_accuracy = np.nanmean(upper_tri_accuracies)
@@ -238,13 +399,7 @@ for stim in stim_types:
         print(f"   -> {response_window} - {brainRegion}")
         brain_mask = brainRegionArray == brainRegion
         brain_resp_array = respArray[brain_mask, :]
-
-        # Randomly select up to max_neurons neurons
-        n_neurons = brain_resp_array.shape[0]
-        if n_neurons > max_neurons:
-            np.random.seed(42)
-            selected_neurons = np.random.choice(n_neurons, max_neurons, replace=False)
-            brain_resp_array = brain_resp_array[selected_neurons, :]
+        brain_resp_array = subsample_neurons(brain_resp_array, max_neurons)
 
         # Get best C
         key = f"{stim}_{brainRegion}_{response_window}"
@@ -253,184 +408,32 @@ for stim in stim_types:
             accuracies = hyperparameter_results[key]['accuracies']
             best_c = c_values[np.argmax(accuracies)]
         else:
-            best_c = 1.0  # fallback
+            best_c = 1.0
 
-        svm_stim_vals = np.full((len(uniqStims), len(uniqStims)), np.nan)
-        total_pairs = len(uniqStims) * (len(uniqStims) - 1)
+        svm_stim_vals, pair_accuracies = compute_pairwise_accuracies(
+            brain_resp_array, stimArray, uniqStims, best_c,
+            desc=f"{stim} | {response_window} | {brainRegion} (C={best_c:.3f})"
+        )
 
-        pair_accuracies = []
+        # Store results
+        for pair in pair_accuracies:
+            all_results.append({
+                "stim": stim,
+                "region": brainRegion,
+                "window": response_window,
+                "stim1": pair['stim1'],
+                "stim2": pair['stim2'],
+                "accuracy": pair['accuracy'],
+                "C": best_c
+            })
 
-        with tqdm(total=total_pairs,
-                  desc=f"{stim} | {response_window} | {brainRegion} (C={best_c:.3f})",
-                  leave=True) as pbar:
-            for i1, stim1 in enumerate(uniqStims):
-                mask1 = stimArray == stim1
-                resp1 = brain_resp_array[:, mask1]
+        # Create classifier visualization
+        create_classifier_visualization(
+            brain_resp_array, pair_accuracies, stim, brainRegion,
+            response_window, best_c, save_dir
+        )
 
-                for i2, stim2 in enumerate(uniqStims):
-                    if i1 == i2:
-                        pbar.update(1)
-                        continue
-                    mask2 = stimArray == stim2
-                    resp2 = brain_resp_array[:, mask2]
-
-                    X_pair = np.hstack([resp1, resp2]).T
-                    y_pair = np.array([0] * resp1.shape[1] + [1] * resp2.shape[1])
-
-                    shuffle_idx = np.random.permutation(len(y_pair))
-                    X_pair = X_pair[shuffle_idx]
-                    y_pair = y_pair[shuffle_idx]
-
-                    scaler = StandardScaler()
-                    X_pair = scaler.fit_transform(X_pair)
-
-                    svm = LinearSVC(max_iter=10000, dual='auto', C=best_c)
-                    loo = LeaveOneOut()
-                    acc_list = []
-                    for tr, te in loo.split(X_pair):
-                        X_train = X_pair[tr]
-                        X_test = X_pair[te]
-                        acc = svm.fit(X_train, y_pair[tr]).score(X_test, y_pair[te])
-                        acc_list.append(acc)
-
-                    accuracy = np.mean(acc_list)
-                    svm_stim_vals[i1, i2] = accuracy
-
-                    pair_accuracies.append({
-                        'stim1': stim1, 'stim2': stim2, 'accuracy': accuracy,
-                        'X_pair': X_pair, 'y_pair': y_pair
-                    })
-
-                    all_results.append({
-                        "stim": stim,
-                        "region": brainRegion,
-                        "window": response_window,
-                        "stim1": stim1,
-                        "stim2": stim2,
-                        "accuracy": accuracy,
-                        "C": best_c
-                    })
-                    pbar.update(1)
-
-        # ===== CLASSIFIER EXAMPLE VISUALIZATION (with margin lines) =====
-        if len(pair_accuracies) >= 2 and brain_resp_array.shape[0] >= 2:
-            pair_accuracies.sort(key=lambda x: x['accuracy'])
-            worst_pair = pair_accuracies[0]
-            best_pair = pair_accuracies[-1]
-
-            neuron_vars = np.var(brain_resp_array, axis=1)
-            neuron_idx = np.argsort(neuron_vars)[-2:]  # top 2 var neurons
-
-            fig_viz = make_subplots(
-                rows=1, cols=2,
-                subplot_titles=[
-                    f"Worst: {worst_pair['stim1']} vs {worst_pair['stim2']} (acc={worst_pair['accuracy']:.2f})",
-                    f"Best: {best_pair['stim1']} vs {best_pair['stim2']} (acc={best_pair['accuracy']:.2f})"
-                ]
-            )
-
-            for viz_col, pair in enumerate([worst_pair, best_pair], start=1):
-                X_2d = pair['X_pair'][:, neuron_idx]
-                y = pair['y_pair']
-
-                scaler_viz = StandardScaler()
-                X_2d_scaled = scaler_viz.fit_transform(X_2d)
-
-                svm_final = LinearSVC(max_iter=10000, dual='auto', C=best_c)
-                svm_final.fit(X_2d_scaled, y)
-
-                w = svm_final.coef_[0]
-                b = svm_final.intercept_[0]
-                # margin distance
-                norm_w = np.linalg.norm(w)
-                margin = 1.0 / norm_w if norm_w > 0 else 0.0
-
-                x_min, x_max = X_2d_scaled[:, 0].min() - 1, X_2d_scaled[:, 0].max() + 1
-                xx = np.linspace(x_min, x_max, 200)
-
-                if abs(w[1]) < 1e-6:
-                    # avoid divide-by-zero: vertical-ish boundary
-                    yy_boundary = np.full_like(xx, -b / (w[1] + 1e-6))
-                    slope_factor = 1.0
-                else:
-                    yy_boundary = -(w[0] * xx + b) / w[1]
-                    # distance to boundary in y for unit x step
-                    slope_factor = np.sqrt(1 + (w[0] / w[1]) ** 2)
-
-                yy_upper = yy_boundary + margin * slope_factor
-                yy_lower = yy_boundary - margin * slope_factor
-
-                # plot points
-                fig_viz.add_trace(
-                    go.Scatter(
-                        x=X_2d_scaled[y == 0, 0],
-                        y=X_2d_scaled[y == 0, 1],
-                        mode='markers',
-                        marker=dict(color='#31688e', size=8),
-                        name='Stim 1',
-                        showlegend=(viz_col == 1)
-                    ),
-                    row=1, col=viz_col
-                )
-                fig_viz.add_trace(
-                    go.Scatter(
-                        x=X_2d_scaled[y == 1, 0],
-                        y=X_2d_scaled[y == 1, 1],
-                        mode='markers',
-                        marker=dict(color='#35b779', size=8),
-                        name='Stim 2',
-                        showlegend=(viz_col == 1)
-                    ),
-                    row=1, col=viz_col
-                )
-
-                # decision boundary
-                fig_viz.add_trace(
-                    go.Scatter(
-                        x=xx, y=yy_boundary,
-                        mode='lines',
-                        line=dict(color='black', width=2),
-                        name='Decision boundary',
-                        showlegend=(viz_col == 1)
-                    ),
-                    row=1, col=viz_col
-                )
-                # margins
-                fig_viz.add_trace(
-                    go.Scatter(
-                        x=xx, y=yy_upper,
-                        mode='lines',
-                        line=dict(color='black', width=1, dash='dot'),
-                        name='Margin',
-                        showlegend=False
-                    ),
-                    row=1, col=viz_col
-                )
-                fig_viz.add_trace(
-                    go.Scatter(
-                        x=xx, y=yy_lower,
-                        mode='lines',
-                        line=dict(color='black', width=1, dash='dot'),
-                        name='Margin',
-                        showlegend=False
-                    ),
-                    row=1, col=viz_col
-                )
-
-                fig_viz.update_xaxes(title_text=f'Neuron {neuron_idx[0]} (scaled)', row=1, col=viz_col)
-                fig_viz.update_yaxes(title_text=f'Neuron {neuron_idx[1]} (scaled)', row=1, col=viz_col)
-
-            fig_viz.update_layout(
-                height=500,
-                width=1000,
-                title=f"Classifier Examples: {stim} - {brainRegion} (C={best_c:.3f})"
-            )
-            fig_viz.write_html(os.path.join(
-                save_dir,
-                f"classifier_examples_{stim}_{brainRegion}_{response_window}.html"
-            ))
-
-        # ===== HEATMAP =====
+        # Create heatmap
         show_cb = (col_idx == len(uniqRegions))
         heatmap = go.Heatmap(
             z=svm_stim_vals,
