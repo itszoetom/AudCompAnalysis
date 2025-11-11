@@ -8,7 +8,7 @@ from sklearn.model_selection import LeaveOneOut
 from sklearn.preprocessing import StandardScaler
 from jaratoolbox import settings
 from tqdm import tqdm
-import studyparams  # using direct import, consistent with below
+import studyparams
 
 # SETTINGS
 file_path = settings.FIGURES_DATA_PATH
@@ -24,7 +24,7 @@ colors = {
     'Ventral auditory area': '#d62728'
 }
 
-hyperparameters = np.logspace(-4, 5, 20)
+hyperparameters = np.logspace(-2, 4, 20)
 all_results = []
 max_neurons = 265  # Maximum neurons per brain region
 
