@@ -22,6 +22,10 @@ colors = {
 output_dir = "/Users/zoetomlinson/Desktop/MurrayLab/neuronalDataResearch/Figures/PCA/"
 os.makedirs(output_dir, exist_ok=True)
 
+# Set random seed for reproducibility
+np.random.seed(42)
+MAX_NEURONS = 265
+
 
 def encode_natural_sounds(stim_array):
     """Encode natural sound strings as numbers 1-20"""
@@ -62,6 +66,15 @@ for stim in stim_types:
             respArray = stim_arrays[f"{respRange}fr"]
             brain_resp_array = respArray[brain_mask, :]  # neurons × trials
 
+            # Randomly subsample neurons if more than MAX_NEURONS
+            n_neurons = brain_resp_array.shape[0]
+            if n_neurons > MAX_NEURONS:
+                neuron_indices = np.random.choice(n_neurons, MAX_NEURONS, replace=False)
+                brain_resp_array = brain_resp_array[neuron_indices, :]
+                n_neurons_used = MAX_NEURONS
+            else:
+                n_neurons_used = n_neurons
+
             # Transpose so trials are rows and neurons are columns
             X = brain_resp_array.T  # trials × neurons
 
@@ -90,7 +103,7 @@ for stim in stim_types:
                                          vmax=freq_encoded.max())
             ax_pca.set_xlabel(f'PC1 ({pca.explained_variance_ratio_[0]:.1%})', fontsize=8)
             ax_pca.set_ylabel(f'PC2 ({pca.explained_variance_ratio_[1]:.1%})', fontsize=8)
-            ax_pca.set_title(f'{brainRegion}\n{respRange}\nn={X.shape[1]} neurons',
+            ax_pca.set_title(f'{brainRegion}\n{respRange}\nn={n_neurons_used} neurons',
                              fontsize=9)
             ax_pca.tick_params(labelsize=7)
 
@@ -101,7 +114,7 @@ for stim in stim_types:
                                            vmax=freq_encoded.max())
             ax_umap.set_xlabel('UMAP 1', fontsize=8)
             ax_umap.set_ylabel('UMAP 2', fontsize=8)
-            ax_umap.set_title(f'{brainRegion}\n{respRange}\nn={X.shape[1]} neurons',
+            ax_umap.set_title(f'{brainRegion}\n{respRange}\nn={n_neurons_used} neurons',
                               fontsize=9)
             ax_umap.tick_params(labelsize=7)
 

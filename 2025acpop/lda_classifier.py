@@ -63,6 +63,7 @@ for stim in stim_types:
         respArray = stim_arrays[f"{respRange}fr"]
 
         for row_idx, brainRegion in enumerate(uniqRegions, start=1):
+            # TODO: subset neuron count for each brain region down to 265 (randomly select 265 neurons)
             print(f"   -> {respRange} - {brainRegion}")
             brain_mask = brainRegionArray == brainRegion
             brain_resp_array = respArray[brain_mask, :]
@@ -85,13 +86,15 @@ for stim in stim_types:
                         X_pair = np.hstack([resp1, resp2]).T
                         y_pair = np.array([0] * resp1.shape[1] + [1] * resp2.shape[1])
 
-                        if len(np.unique(y_pair)) < 2:
-                            pbar.update(1)
-                            continue
+                        # TODO: standardize the inputs before training
+
+                        # Shuffle the dataset so trials are randomized (not all 0s then all 1s)
+                        shuffle_idx = np.random.permutation(len(y_pair))
+                        X_pair = X_pair[shuffle_idx]
+                        y_pair = y_pair[shuffle_idx]
 
                         loo = LeaveOneOut()
                         acc_list = []
-                        # TODO: shuffle the dataset and array here so that it's not just 11111110000000 yknow
                         for train_idx, test_idx in loo.split(X_pair, y_pair):
                             lda.fit(X_pair[train_idx], y_pair[train_idx])
                             acc_list.append(lda.score(X_pair[test_idx], y_pair[test_idx]))

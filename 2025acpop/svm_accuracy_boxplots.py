@@ -7,7 +7,6 @@ from itertools import combinations
 from scipy.stats import ttest_rel, mannwhitneyu, wilcoxon, spearmanr
 from statsmodels.stats.multitest import multipletests
 from jaratoolbox import settings
-
 # %% Load data
 studyparams = __import__('2025acpop.studyparams').studyparams
 file_path = settings.SAVE_PATH + "SVM/svm_pairwise_results.csv"
@@ -23,7 +22,7 @@ os.makedirs(save_path, exist_ok=True)
 
 apply_bonferroni = True
 
-cutoffs = {"AM": 5, "naturalSound": 10, "pureTones": 7}
+cutoffs = {"AM": 5, "naturalSound": 10, "pureTones": 8}
 
 
 # %% Helper functions
@@ -116,6 +115,9 @@ for stim in stim_types:
             stat, p_val = ttest_rel(lower_vals, upper_vals)
             sig_star = significance_stars(p_val)
 
+            if stim == 'naturalSound':
+                uniq_stims = labels
+
             sns.heatmap(
                 svm_stim_vals,
                 ax=ax,
@@ -125,8 +127,8 @@ for stim in stim_types:
                 vmax=1,
                 cbar=(row_idx == 0 and col_idx == n_cols - 1),
                 cbar_kws={"label": "SVM Accuracy"},
-                xticklabels=labels,
-                yticklabels=labels
+                xticklabels=uniq_stims,
+                yticklabels=uniq_stims
             )
             ax.set_title(f"{reg} - {win} {sig_star}", fontsize=12)
             ax.set_xlabel("Stim2")
