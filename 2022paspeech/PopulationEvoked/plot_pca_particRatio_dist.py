@@ -30,10 +30,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
-import os
 from copy import deepcopy
 from .. import studyparams as params, funcs
 from jaratoolbox import celldatabase, settings
+
 # Create arrays to hold participation ratios for each brain area and sound type combo
 primary_speech = []
 primary_am = []
@@ -207,7 +207,7 @@ for subject in params.subject_list:
             pca = PCA()
             pca.fit(data_standardized)
             explained_variance_ratio = pca.explained_variance_ratio_
-            particRatio = calculate_participation_ratio_(explained_variance_ratio)
+            particRatio = funcs.calculate_participation_ratio_(explained_variance_ratio)
             n_neurons = data['X'].shape[1]  # Number of neurons
             # particRatioPercent = calculate_participation_ratio_percent(explained_variance_ratio, n_neurons)
 

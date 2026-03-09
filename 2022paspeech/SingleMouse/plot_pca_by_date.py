@@ -5,9 +5,7 @@
 import os
 from .. import studyparams
 import numpy as np
-import pandas as pd
-from jaratoolbox import celldatabase, settings, spikesanalysis, ephyscore, behavioranalysis, extraplots
-from scipy import stats, signal
+from jaratoolbox import celldatabase, settings, ephyscore, behavioranalysis, extraplots
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
@@ -17,8 +15,6 @@ import matplotlib.pyplot as plt
 #  components_ gives eigenvector. Make scree plot from values (eigenvalue is y-axis, component number is x-axis)
 
 #%% Constants
-figSavePath = "/Users/zoetomlinson/Desktop/NeuroAI/Figures/"
-fontSizeLabels = 10
 databaseDir = os.path.join(settings.DATABASE_PATH, studyparams.STUDY_NAME)
 
 subject_list = ['feat004', 'feat005', 'feat006', 'feat007', 'feat008', 'feat009', 'feat010']

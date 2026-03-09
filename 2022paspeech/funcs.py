@@ -16,9 +16,8 @@ import seaborn as sns
 # %% Initialize plot and subset dataframe
 def load_data(subject, date, targetSiteName, sound_type_load):
     fullDb = celldatabase.load_hdf(params.fullPath)
-
     simpleSiteNames = fullDb["recordingSiteName"].str.split(',').apply(lambda x: x[0])
-    simpleSiteNames = simpleSiteNames.replace("Posterior auditory area", "Dorsal auditory area")
+    # simpleSiteNames = simpleSiteNames.replace("Posterior auditory area", "Dorsal auditory area")
 
     fullDb["recordingSiteName"] = simpleSiteNames
     celldb = fullDb[(fullDb.subject == subject)]
@@ -33,9 +32,8 @@ def load_data(subject, date, targetSiteName, sound_type_load):
     try:
         ephysData, bdata = ensemble.load(sound_type_load)
     except IndexError:
-        print(f"No FTVOTBorder data for {targetSiteName} on {date} for {subject}")
+        print(f"No sound data for {targetSiteName} on {date} for {subject}")
         return None, None, None
-
     return ensemble, ephysData, bdata
 
 
@@ -67,24 +65,13 @@ def spike_rate(sound_type, ensemble, ephysData, bdata, targetSiteName):
         # Create and sort Y_frequency for speech
         Y_frequency = np.array([(FTParamsEachTrial[i], VOTParamsEachTrial[i]) for i in range(nTrials)])
 
-    if sound_type == "AM":
+    if sound_type == "AM" or sound_type == "PT":
         nTrials = len(bdata['currentFreq'])
         eventOnsetTimes = ephysData['events']['stimOn'][:nTrials]
         _, _, _ = ensemble.eventlocked_spiketimes(eventOnsetTimes, [params.evoked_start, params.evoked_end])
         spikeCounts = ensemble.spiketimes_to_spikecounts(params.binEdges)
         sumEvokedFR = spikeCounts.sum(axis=2)
         spikesPerSecEvoked = sumEvokedFR / (params.evoked_end - params.evoked_start)
-
-        # Create and sort Y_frequency for AM/PT
-        Y_frequency = np.array(bdata['currentFreq'])
-
-    if sound_type == "PT":
-        nTrials = len(bdata['currentFreq'])
-        eventOnsetTimes = ephysData['events']['stimOn'][:nTrials]
-        _, _, _ = ensemble.eventlocked_spiketimes(eventOnsetTimes, [params.evoked_start, params.pt_evoked_end])
-        spikeCounts = ensemble.spiketimes_to_spikecounts(params.binEdgesPT)
-        sumEvokedFR = spikeCounts.sum(axis=2)
-        spikesPerSecEvoked = sumEvokedFR / (params.evoked_end - params.pt_evoked_end)
 
         # Create and sort Y_frequency for AM/PT
         Y_frequency = np.array(bdata['currentFreq'])
@@ -131,8 +118,7 @@ def adjust_array_and_labels(x_list, y_list, brain_area, max_length, subject, dat
 
         adjusted_y_list.append(y[:max_length])
 
-    return adjusted_x_list, adjusted_y_list, adjusted_ba_list, ignored_x_lists, ignored_y_lists, ignored_ba_lists
-
+    return adjusted_x_list, adjusted_y_list, adjusted_ba_list
 
 def sort_x_arrays(X_list, indices, sound_type):
     sorted_x_list = []

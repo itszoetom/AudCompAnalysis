@@ -31,6 +31,7 @@ recordingDate_list = {
 STUDY_NAME_2022 = '2022paspeech'
 STUDY_NAME = '2024popanalysis'
 figSavePath = "/Users/zoetomlinson/Desktop/MurrayLab/figures/"
+dbSavePath = "/Users/zoetomlinson/Desktop/MurrayLab/AudPopAnalysis/data"
 fullDbPath = 'celldb_2024popanalysis.h5'
 databaseDir = os.path.join(settings.DATABASE_PATH, STUDY_NAME)
 fullPath = os.path.join(databaseDir, fullDbPath)
@@ -50,15 +51,14 @@ data_dict = {}
 binEdges = np.arange(evoked_start, evoked_end, binWidth)
 binEdgesPT = np.arange(evoked_start, pt_evoked_end, binWidth)
 binEdgesSpeech = np.arange(allPeriodsSpeech[1][0], allPeriodsSpeech[1][1], binSize)
-max_trials = {'PT': 640, 'AM': 220, 'speech': 381}
-sound_type_load = ["FTVOTBorders", "AM", "pureTones"]
+sound_type_load = [("speech", "FTVOTBorders"), ("AM", "AM"), ("PT", "pureTones")]
 min_speech_freq_dict = {(0, 0): 31, (0, 33): 29, (0, 67): 32, (0, 100): 24, (33, 100): 34, (67, 100): 35,
                         (100, 100): 33, (100, 67): 29, (100, 33): 35, (100, 0): 35, (67, 0): 31, (33, 0): 33}
 unique_labels = [(0, 0), (0, 33), (0, 67), (0, 100), (33, 100), (67, 100),
                  (100, 100), (100, 67), (100, 33), (100, 0), (67, 0), (33, 0)]
 
 # Initialize a dictionary to store counts for each frequency across mouse-date combos
-frequency_counts_dict = {tuple(freq): [] for freq in unique_labels}
+freq_kept_counts = {tuple(freq): 0 for freq in unique_labels}
 # Initialize an empty dictionary to store the neuron counts for each subject
 neuron_counts = {subject: 0 for subject in subject_list}
 
@@ -75,7 +75,10 @@ spike_windows = {'pt - onset': [0.0, 0.03],  # [evoked_start, evoked_stop] in s
                  'am - offset': [0.5, 0.7],
                  'speech - onset': [0.0, 0.2],
                  'speech - sustained': [0.2, 0.5],
-                 'speech - offset': [0.5, 0.7]}
+                 'speech - offset': [0.5, 0.7],
+                 'naturalSound - onset': [0.0, 0.5],
+                 'naturalSound - sustained': [1, 4],
+                 'naturalSound - offset': [4, 4.5]}
 
 # Mapping from old window names to simplified names
 window_name_mapping = {
