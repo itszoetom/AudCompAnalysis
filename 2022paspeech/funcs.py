@@ -293,28 +293,28 @@ def create_figure_grid(rows, cols, title, figsize=(18, 10)):
     return fig, axes
 
 
-def plot_scree_plot(ax, data, title, y_max, particRatio, color='black'):
-    # Perform PCA
+def plot_scree_plot(ax, data, title, particRatioPercent):
     pca = PCA()
     pca.fit(data)
     explained_variance_ratio = pca.explained_variance_ratio_
+    y_max = np.max(explained_variance_ratio) * 1.1  # 10% padding
 
-    # Plot settings
-    x_max = min(len(explained_variance_ratio), 11)
-    ax.bar(range(x_max), explained_variance_ratio[:x_max], color=color)
+    n_components = len(explained_variance_ratio)
+    x_max = min(n_components, 13)  # Limit x-axis to 13 components
+    x_min = 0
 
-    # Axis formatting
+    ax.bar(range(x_max), explained_variance_ratio[:x_max], color='black')
+    ax.set_xlabel('PCA features', fontsize=12)
+    ax.set_ylabel('Explained Variance Ratio', fontsize=12)
+    ax.set_title(title, fontsize=14)
     ax.set_xticks(range(x_max))
-    ax.set_xlim(0, 11)
+    ax.set_xlim(x_min, 13)  # Set x-axis limits from 0 to 13
     ax.set_ylim(0, y_max)
-
-    # Participation ratio annotation
-    ax.text(0.5, 0.9,
-            f"Participation Ratio = {particRatio:.3f}",
-            transform=ax.transAxes,
-            ha='center', va='center',
-            fontsize=28,
-            bbox=dict(boxstyle='round,pad=0.3', facecolor='white', edgecolor='gray', alpha=0.6))
+    ax.text(0.6, 0.85, f"Participation Ratio Percent = {particRatioPercent:.3f}",
+            horizontalalignment='center', verticalalignment='center',
+            fontsize=14, transform=ax.transAxes)
+    ax.grid(True, which='both', linestyle='--', linewidth=0.5)
+    return explained_variance_ratio
 
 
 def plot_2d_pca(ax, data, labels, title, cmap):
@@ -340,6 +340,7 @@ def plot_2d_pca(ax, data, labels, title, cmap):
 
     ax.set_xlabel(f'PCA 1 ({explained_variance[0] * 100:.2f}% variance)')
     ax.set_ylabel(f'PCA 2 ({explained_variance[1] * 100:.2f}% variance)')
+    plt.colorbar(scatter, ax=ax, orientation='vertical')
 
     return scatter
 

@@ -1,7 +1,7 @@
 from matplotlib import cm
 import numpy as np
 import os
-import settings
+from jaratoolbox import settings
 
 subject_list = ['feat004', 'feat005', 'feat006', 'feat007', 'feat008', 'feat009', 'feat010']
 # 'feat001', 'feat011','feat014', 'feat015', 'feat016', 'feat017', 'feat018', 'feat019'
