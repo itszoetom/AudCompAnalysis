@@ -1,7 +1,7 @@
 # Functions file for AudPopAnalysis/2022paspeech Project
 import numpy as np
 import matplotlib.pyplot as plt
-from jaratoolbox import celldatabase, ephyscore
+import celldatabase, ephyscore # from jaratoolbox
 from copy import deepcopy
 from sklearn.decomposition import PCA
 import studyparams as params
