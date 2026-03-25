@@ -3,8 +3,12 @@ import numpy as np
 import os
 from jaratoolbox import settings
 
-subject_list = ['feat004', 'feat005', 'feat006', 'feat007', 'feat008', 'feat009', 'feat010']
+SPEECH_SUBJECTS = ['feat004', 'feat005', 'feat006', 'feat007', 'feat008', 'feat009', 'feat010']
+SUBJECTS = ['feat014', 'feat015', 'feat016', 'feat017', 'feat018', 'feat019']
 # 'feat001', 'feat011','feat014', 'feat015', 'feat016', 'feat017', 'feat018', 'feat019'
+
+# -- About natural sounds --
+SOUND_CATEGORIES = ['Frogs', 'Crickets', 'Streamside', 'Bubbling', 'Bees']
 
 recordingDate_list = {
     'feat001': ['2021-11-09', '2021-11-11', '2021-11-16', '2021-11-17', '2021-11-18', '2021-11-19'],
@@ -25,18 +29,16 @@ recordingDate_list = {
     'feat018': ['2024-06-06', '2024-06-07', '2024-06-10', '2024-06-11', '2024-06-12', '2024-06-14', '2024-06-15',
                 '2024-06-17', '2024-06-18', '2024-06-26', '2024-06-27'],
     'feat019': ['2024-06-12', '2024-06-13', '2024-06-14', '2024-06-17', '2024-06-18', '2024-06-19', '2024-06-27',
-                '2024-06-28']
-}
+                '2024-06-28']}
 
-STUDY_NAME_2022 = '2022paspeech'
-STUDY_NAME = '2024popanalysis'
+STUDY_NAME = '2025acpop'
+SPEECH_STUDY_NAME = '2024popanalysis'
+DATABASE_PATH = '/Volumes/NardociData/jarahubdata/figuresdata/'
 figSavePath = "/Users/zoetomlinson/Desktop/MurrayLab/figures/"
-dbSavePath = "/Users/zoetomlinson/Desktop/MurrayLab/AudPopAnalysis/data"
-fullDbPath = 'celldb_2024popanalysis.h5'
-databaseDir = os.path.join(settings.DATABASE_PATH, STUDY_NAME)
-fullPath = os.path.join(databaseDir, fullDbPath)
+dbSavePath = "/Users/zoetomlinson/Desktop/MurrayLab/AudPopAnalysis/data/"
 
-targetSiteNames = ["Primary auditory area", "Dorsal auditory area", "Ventral auditory area"]
+
+targetSiteNames = ["Primary auditory area", "Dorsal auditory area", "Ventral auditory area", "Posterior auditory area"]
 max_trials = {'PT': 640, 'AM': 220, 'speech': 381}
 leastCellsArea = 10000
 evoked_start = 0.015
@@ -60,9 +62,7 @@ unique_labels = [(0, 0), (0, 33), (0, 67), (0, 100), (33, 100), (67, 100),
 # Initialize a dictionary to store counts for each frequency across mouse-date combos
 freq_kept_counts = {tuple(freq): 0 for freq in unique_labels}
 # Initialize an empty dictionary to store the neuron counts for each subject
-neuron_counts = {subject: 0 for subject in subject_list}
 
-min_neuron_dict = {"Primary auditory area": 9, "Ventral auditory area": 9}
 previous_frequency_speech = None
 previous_frequency_AM = None
 previous_frequency_PT = None
@@ -80,23 +80,11 @@ spike_windows = {'pt - onset': [0.0, 0.03],  # [evoked_start, evoked_stop] in s
                  'naturalSound - sustained': [1, 4],
                  'naturalSound - offset': [4, 4.5]}
 
-# Mapping from old window names to simplified names
-window_name_mapping = {
-    'speech - onset': 'onset',
-    'speech - sustained': 'sustained',
-    'speech - offset': 'offset',
-    'pt - onset': 'onset',
-    'pt - sustained': 'sustained',
-    'pt - offset': 'offset',
-    'am - onset': 'onset',
-    'am - sustained': 'sustained',
-    'am - offset': 'offset'
-}
-
 short_names = {
     'Primary auditory area': 'Primary',
     'Dorsal auditory area':  'Dorsal',
-    'Ventral auditory area': 'Ventral'
+    'Ventral auditory area': 'Ventral',
+    'Posterior auditory area': 'Posterior'
 }
 
 color_palette = {
@@ -111,4 +99,8 @@ color_palette = {
     "Ventral auditory area - PT": cm.summer(1),      # Dark green (Summer bottom)
     "Ventral auditory area - AM": cm.summer(0.66),      # Medium green (Summer middle)
     "Ventral auditory area - speech": cm.summer(0.33),  # Pale minty green (Summer top)
+
+    "Posterior auditory area - PT": cm.autumn(1),     # Dark orange (Autumn bottom)
+    "Posterior auditory area - AM": cm.autumn(0.66),     # Medium orange (Autumn middle)
+    "Posterior auditory area - speech": cm.autumn(0.33)      # Light orange (Autumn top)
 }
