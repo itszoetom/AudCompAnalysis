@@ -1,16 +1,21 @@
 # Functions file for AudPopAnalysis/2022paspeech Project
 import numpy as np
 import matplotlib.pyplot as plt
-from jaratoolbox import celldatabase, ephyscore
+from jaratoolbox import celldatabase, ephyscore, spikesanalysis
 from copy import deepcopy
 from sklearn.decomposition import PCA
-import studyparams as params
+import params
 from sklearn.linear_model import Ridge
 from sklearn.model_selection import KFold
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error
 from scipy.stats import pearsonr
 import seaborn as sns
+import pandas as pd
+import plotly
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+from tqdm import tqdm
 
 
 # %% Initialize plot and subset dataframe
@@ -429,3 +434,196 @@ def plot_5fold_cv(X, Y, title_str, brain_area, window_name, condition_name):
     plt.show()
 
     return fold_results
+
+def hex_to_rgba(hex_color, alpha=1):
+    """
+    Converts a hexadecimal color string (e.g., "#RRGGBB" or "#RRGGBBAA")
+    to an RGBA tuple (R, G, B, A), where A is between 0 and 1.
+    """
+    hex_color = hex_color.lstrip('#')  # Remove '#' if present
+
+    if len(hex_color) == 6:
+        # Assume full opacity if no alpha component is provided
+        r = int(hex_color[0:2], 16)
+        g = int(hex_color[2:4], 16)
+        b = int(hex_color[4:6], 16)
+        a = alpha
+    elif len(hex_color) == 8:
+        r = int(hex_color[0:2], 16)
+        g = int(hex_color[2:4], 16)
+        b = int(hex_color[4:6], 16)
+        a = alpha
+    else:
+        raise ValueError("Invalid hex color format. Expected 6 or 8 characters.")
+
+    return (r, g, b, a)
+
+
+def plot_rasters(celldb:pd.DataFrame, sortingInds: np.ndarray, trialIndexForEachSpikeAll: list,
+                 spikeTimesFromEventOnsetAll: list, rows: int=3, cols: int=3,
+                 random: bool=True, specificInds: list=None, title: str=None, plot: bool=True,
+                 subplot_titles: bool=True) -> plotly.graph_objs._figure.Figure:
+
+    n_cells = rows*cols
+    if random:
+        someCells = celldb.sample(n=n_cells).index.tolist()
+    elif random == False and specificInds is not None:
+        someCells = specificInds
+    elif random == False and specificInds is None:
+        someCells = np.arange(n_cells)
+
+    # Initialize subplots with shared X and Y axes
+    fig = make_subplots(
+        rows=rows, cols=cols,
+        shared_xaxes=False, shared_yaxes=True,
+        subplot_titles=celldb.loc[someCells]['simpleSiteName'].to_list() if subplot_titles else None,
+    )
+
+    for count, indcell in enumerate(someCells):
+        row = count // 3 + 1
+        col = count % 3 + 1
+
+        sortedIndexForEachSpike = sortingInds[trialIndexForEachSpikeAll[indcell]]
+        fig.add_trace(
+            go.Scatter(
+                x=spikeTimesFromEventOnsetAll[indcell],
+                y=sortedIndexForEachSpike,
+                mode='markers',
+                marker=dict(size=2, color='black'),
+                name=f'Cell {indcell}'
+            ),
+            row=row, col=col
+        )
+        # Add axis labels
+        fig.update_xaxes(title_text="Time (s)", row=row, col=col)
+        fig.update_yaxes(title_text=f"[{indcell}] Sorted trials", row=row, col=col)
+
+    fig.add_vline(
+        x=0,
+        line=dict(color='red', width=2),  # Customize color and width
+    )
+
+    if title is not None:
+        fig.update_layout(
+            title=title,
+            showlegend=False,
+            height=400 * rows,
+            width=1200,
+            title_font=dict(size=16, family='Arial', color='black')
+        )
+    else:
+        fig.update_layout(
+            showlegend=False,
+            height=400 * rows,
+            width=1200,
+        )
+
+    if plot:
+        fig.show();
+
+    return fig
+
+
+def calculate_fr_arrays(celldb:pd.DataFrame, stimType:str, stimVar:str, timeRange:list, allPeriods:list) -> list:
+    """
+    Calculates the firing rate arrays for given cell data, stimulus type, and time range.
+
+    This function processes a given set of cell data from a DataFrame alongside the
+    corresponding stimulus type and a specified time range. It calculates the firing
+    rate arrays for different response periods, such as baseline, onset response, and
+    sustained response periods. The calculations take into account the number of cells,
+    categories, and specified time ranges provided.
+
+    Args:
+        celldb (pd.DataFrame): A DataFrame containing cell information for tracking relevant ephys data.
+        stimType (str): The type of stimulus used in the experiment. Valid values are 'Sine', 'naturalSound', and
+        'AM'.
+        stimVar (str): The name of the variable in the behavior data representing the stimulus.
+        timeRange (list): A list specifying the time range to analyze, in the form
+            [start_time, end_time].
+        allPeriods (list): A list of tuples/lists specifying the periods to analyze. Assumes order of
+        [baseline, onset, sustained, offset].
+
+    Returns:
+        list: A list containing the calculated firing rate arrays for all periods and an array of trial stims
+        [baseline, onset, sustained, offset, stimArray]
+    """
+    nCells = len(celldb)
+    periodDuration = [x[1] - x[0] for x in allPeriods]
+
+    if stimType == 'AM':
+        nTrials = 220
+        nCategories = 11
+    elif stimType == 'naturalSound':
+        nTrials = 200
+        nCategories = len(params.SOUND_CATEGORIES)
+    elif stimType == 'pureTones':
+        nTrials = 320
+        nCategories = 16
+    else:
+        raise ValueError(f"Unrecognized stimulus type: {stimType}. Should be in ['AM', 'naturalSound', 'pureTones']")
+
+    basefr = np.full((nCells, nTrials), np.nan)
+    onsetfr = np.full((nCells, nTrials), np.nan)
+    sustainedfr = np.full((nCells, nTrials), np.nan)
+    offsetfr = np.full((nCells, nTrials), np.nan)
+    stimArray = np.full((nCells, nTrials), np.nan)
+    brainRegion = np.empty(nCells, object)
+    mouseID = np.empty(nCells, object)
+    sessionID = np.empty(nCells, object)
+
+    num_iterations = len(celldb)
+    indCell = -1
+    for indRow, dbRow in tqdm(celldb.iterrows(), total=num_iterations, desc=f"Calculating firing rates for {stimType}"):
+        indCell += 1
+        oneCell = ephyscore.Cell(dbRow)
+        ephysData, bdata = oneCell.load(stimType)
+
+        spikeTimes = ephysData['spikeTimes']
+        eventOnsetTimes = ephysData['events']['stimOn'][:nTrials]
+        currentStim = bdata[stimVar][:nTrials]
+
+        # -- Test if trials from behavior don't match ephys -- Shouldn't matter since I am manually subsetting both above
+        if (len(currentStim) > len(eventOnsetTimes)) or \
+                (len(currentStim) < len(eventOnsetTimes) - 1):
+            print(f'[{indRow}] Warning! BevahTrials ({len(currentStim)}) and ' +
+                  f'EphysTrials ({len(eventOnsetTimes)})')
+            continue
+        if len(currentStim) == len(eventOnsetTimes) - 1:
+            eventOnsetTimes = eventOnsetTimes[:len(currentStim)]
+
+        (spikeTimesFromEventOnset, trialIndexForEachSpike, indexLimitsEachTrial) = \
+            spikesanalysis.eventlocked_spiketimes(spikeTimes, eventOnsetTimes, timeRange)
+
+        spikesEachTrialEachPeriod = []
+        for indPeriod, period in enumerate(allPeriods):
+            spikeCountMat = spikesanalysis.spiketimes_to_spikecounts(spikeTimesFromEventOnset,
+                                                                     indexLimitsEachTrial, period)
+            spikesEachTrial = spikeCountMat[:, 0]
+            spikesEachTrialEachPeriod.append(spikesEachTrial)
+
+        # for indcond in range(nCategories):
+            # trialsThisCond = trialsEachCateg[:, indcond]
+        firingRateBase = spikesEachTrialEachPeriod[0] / periodDuration[0]
+        firingRateOnset = spikesEachTrialEachPeriod[1] / periodDuration[1]
+        firingRateSustain = spikesEachTrialEachPeriod[2] / periodDuration[2]
+        firingRateOffset = spikesEachTrialEachPeriod[3] / periodDuration[3]
+
+        sorted_stim_ind = np.argsort(currentStim)
+        sorted_stim_array = currentStim[sorted_stim_ind]
+        sorted_fr_base = firingRateBase[sorted_stim_ind]
+        sorted_fr_onset = firingRateOnset[sorted_stim_ind]
+        sorted_fr_sustained = firingRateSustain[sorted_stim_ind]
+        sorted_fr_offset = firingRateOffset[sorted_stim_ind]
+
+
+        basefr[indCell, :] = sorted_fr_base
+        onsetfr[indCell, :] = sorted_fr_onset
+        sustainedfr[indCell, :] = sorted_fr_sustained
+        offsetfr[indCell, :] = sorted_fr_offset
+        stimArray[indCell, :] = sorted_stim_array
+        brainRegion[indCell] = dbRow['simpleSiteName']
+        mouseID[indCell] = dbRow['subject']
+        sessionID[indCell] = dbRow['date']
+
+    return [basefr, onsetfr, sustainedfr, offsetfr, stimArray, brainRegion, mouseID, sessionID]

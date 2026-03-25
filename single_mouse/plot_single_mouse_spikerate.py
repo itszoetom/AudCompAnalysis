@@ -1,94 +1,81 @@
-import numpy as np
+"""Plot per-mouse mean spike-rate profiles by brain region and spike window for each sound."""
+
+from __future__ import annotations
+
 import matplotlib.pyplot as plt
-import os
-import jaratoolbox
-from jaratoolbox import celldatabase, ephyscore, settings
+import numpy as np
 
-# Loading Data Calculating Spike Rate for Pure Tones and Amplitude Modulation Sounnds. Neurons from one mouuse, one day
-
-# Loads in dataframe for one mouse
-subject = 'feat004'
-studyName = '2022paspeech'
-dbPath = os.path.join(settings.DATABASE_PATH, studyName, f'celldb_{subject}.h5')
-oneMouseDf = celldatabase.load_hdf(dbPath)
-
-sessionDate = '2022-01-11'
-probeDepth = 2318
-celldbSubset = oneMouseDf[(oneMouseDf.date == sessionDate) & (oneMouseDf.pdepth == probeDepth)]
-
-ensemble = jaratoolbox.ephyscore.CellEnsemble(celldbSubset)
-
-# Sets time ranges for plotting and calculating firing rates
-behavior_class = None
-baseline_start = -0.1
-baseline_end = 0.3
-evoked_start = 0.015
-evoked_end = 0.3
-binWidth = 0.01
-binEdges = np.arange(evoked_start, evoked_end, binWidth)
-
-# Sets what cells you are graphing
-cell_1 = 21
-cell_2 = 23
+try:
+    from .single_mouse_analysis import (
+        WINDOW_ORDER,
+        apply_figure_style,
+        available_mice,
+        build_dataset,
+        get_brain_regions,
+        get_figure_dir,
+        list_available_sound_types,
+    )
+except ImportError:
+    from single_mouse_analysis import (
+        WINDOW_ORDER,
+        apply_figure_style,
+        available_mice,
+        build_dataset,
+        get_brain_regions,
+        get_figure_dir,
+        list_available_sound_types,
+    )
 
 
-# PT Code
-def spikeRate(sessionType):
-    ephysData, bdata = ensemble.load(sessiontype=sessionType, behavClass=behavior_class)
+def average_by_stimulus(dataset: dict[str, np.ndarray]) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    y = np.asarray(dataset["Y"])
+    x = np.asarray(dataset["X"])
 
-    # Gets spike times and event onset times (i.e. when the sounds were presented or the stim turns on)
-    spike_times = ephysData['spikeTimes']
-    nTrials = len(bdata['currentFreq'])
-    eventOnsetTimes = ephysData['events']['stimOn'][:nTrials]
+    if dataset["sound_type"] == "speech":
+        unique_y, inverse = np.unique(y, axis=0, return_inverse=True)
+        x_axis = np.arange(len(unique_y))
+    else:
+        unique_y, inverse = np.unique(y, return_inverse=True)
+        x_axis = unique_y.astype(float)
 
-    # Lines up event times and spike times
-    spikeTimesFromEventOnset, trialIndexForEachSpike, indexLimitsEachTrial = ensemble.eventlocked_spiketimes(
-        eventOnsetTimes,
-        [evoked_start, evoked_end])
-
-    spikeCountMat = ensemble.spiketimes_to_spikecounts(binEdges)
-    spikeCountMat = spikeCountMat.sum(axis=2)
-    #spikeCountMat = spikeCountMat[:-1]
-    spike_rate = spikeCountMat / (evoked_end - evoked_start)
-    colormap = np.where(bdata['currentFreq'] > bdata['currentFreq'].mean(), "red", "blue")
-
-    return spike_rate, colormap
-
-# Plotting for PT
-PTSpikeRate, PTcolormap = spikeRate("pureTones")
-
-cell_1_PTSpikeRate = PTSpikeRate[cell_1, :]
-cell_2_PTSpikeRate = PTSpikeRate[cell_2, :]
-
-# Plotting for AM
-AMSpikeRate, AMcolormap = spikeRate("AM")
-
-cell_1_AMSpikeRate = AMSpikeRate[cell_1, :]
-cell_2_AMSpikeRate = AMSpikeRate[cell_2, :]
-
-# Plotting
-plt.figure(figsize=(10, 5))
-
-# Plotting for Pure Tones
-plt.subplot(1, 2, 1)
-plt.scatter(cell_1_PTSpikeRate, cell_2_PTSpikeRate, c=PTcolormap)
-plt.title('Pure Tones')
-plt.xlabel(f'Cell {cell_1} Spike Rate (spikes/s)')
-plt.ylabel(f'Cell {cell_2} Spike Rate (spikes/s)')
-# plt.colorbar(label='Pure Tones')
-
-# Plotting for AM
-plt.subplot(1, 2, 2)
-plt.scatter(cell_1_AMSpikeRate, cell_2_AMSpikeRate, c=AMcolormap)
-plt.title('AM')
-plt.xlabel(f'Cell {cell_1} Spike Rate (spikes/s)')
-plt.ylabel(f'Cell {cell_2} Spike Rate (spikes/s)')
-# plt.colorbar(label='AM Frequency (Hz)')
-
-plt.tight_layout()
-plt.show()
+    mean_response = np.array([x[inverse == idx].mean() for idx in range(len(unique_y))])
+    sem_response = np.array([x[inverse == idx].std(ddof=0) / np.sqrt(np.sum(inverse == idx)) for idx in range(len(unique_y))])
+    return x_axis, mean_response, sem_response
 
 
-#spikeTimesFromEventOnsetAll, trialIndexForEachSpikeAll, indexLimitsEachTrialAll = (ensemble.eventlocked_spiketimes(
-        #eventOnsetTimes,
-        #[evoked_start, evoked_end]))
+def main() -> None:
+    apply_figure_style()
+    for sound_type in list_available_sound_types():
+        brain_regions = get_brain_regions(sound_type)
+        for mouse_id in available_mice(sound_type):
+            fig, axes = plt.subplots(
+                len(brain_regions),
+                len(WINDOW_ORDER),
+                figsize=(3.3 * len(WINDOW_ORDER), 2.9 * len(brain_regions)),
+                squeeze=False,
+                constrained_layout=True,
+            )
+            fig.suptitle(f"{mouse_id} spike-rate profiles ({sound_type})", fontsize=16)
+
+            for row_index, brain_area in enumerate(brain_regions):
+                for col_index, window_name in enumerate(WINDOW_ORDER):
+                    ax = axes[row_index, col_index]
+                    dataset = build_dataset(sound_type, window_name, brain_area, mouse_id=mouse_id)
+                    if dataset is None:
+                        ax.axis("off")
+                        continue
+
+                    x_axis, mean_response, sem_response = average_by_stimulus(dataset)
+                    ax.plot(x_axis, mean_response, marker="o", linewidth=1.8, color="black")
+                    ax.fill_between(x_axis, mean_response - sem_response, mean_response + sem_response, alpha=0.2)
+                    ax.set_title(f"{brain_area}\n{window_name.capitalize()}")
+                    ax.set_ylabel("Mean firing rate")
+                    ax.set_xlabel("Stimulus")
+                    ax.grid(axis="y", linestyle="--", linewidth=0.5, alpha=0.3)
+
+            fig.savefig(get_figure_dir() / f"{mouse_id}_{sound_type}_spike_rate_profiles.png", dpi=200)
+            plt.close(fig)
+
+
+if __name__ == "__main__":
+    main()

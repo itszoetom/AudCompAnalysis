@@ -8,7 +8,6 @@ from jaratoolbox import celldatabase
 from jaratoolbox import histologyanalysis as ha
 from jaratoolbox import spikesorting
 from jaratoolbox import settings
-import database_generation_funcs as funcs
 import params
 import sys
 
