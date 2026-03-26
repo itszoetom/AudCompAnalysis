@@ -1,3 +1,5 @@
+"""Shared subjects, paths, spike windows, stimulus metadata, and plot colors for all analyses."""
+
 from matplotlib import cm
 
 SPEECH_SUBJECTS = ['feat004', 'feat005', 'feat006', 'feat007', 'feat008', 'feat009', 'feat010']
@@ -67,4 +69,11 @@ color_palette = {
     "Posterior auditory area - PT": cm.autumn(1),     # Dark orange (Autumn bottom)
     "Posterior auditory area - AM": cm.autumn(0.66),     # Medium orange (Autumn middle)
     "Posterior auditory area - speech": cm.autumn(0.33)      # Light orange (Autumn top)
+}
+
+short_names = {
+    "Primary auditory area": "Primary",
+    "Dorsal auditory area": "Dorsal",
+    "Ventral auditory area": "Ventral",
+    "Posterior auditory area": "Posterior",
 }

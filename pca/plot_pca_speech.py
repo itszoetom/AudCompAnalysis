@@ -1,77 +1,74 @@
-"""Speech-specific PCA plots with FT and VOT colorings."""
+"""Create speech-only PCA figures colored separately by FT and VOT across regions and windows."""
+
+from __future__ import annotations
 
 import matplotlib.pyplot as plt
 
 try:
     from .pca_analysis import (
         WINDOW_ORDER,
-        DEFAULT_SCATTER_KWARGS,
         apply_figure_style,
-        build_population_dataset,
+        build_sampled_dataset,
         compute_pca_summary,
         format_panel_title,
-        get_brain_regions,
         get_figure_dir,
-        make_population_figure,
+        get_plot_brain_regions,
+        get_target_neuron_count,
     )
 except ImportError:
     from pca_analysis import (
         WINDOW_ORDER,
-        DEFAULT_SCATTER_KWARGS,
         apply_figure_style,
-        build_population_dataset,
+        build_sampled_dataset,
         compute_pca_summary,
         format_panel_title,
-        get_brain_regions,
         get_figure_dir,
-        make_population_figure,
+        get_plot_brain_regions,
+        get_target_neuron_count,
     )
 
 
-def main() -> None:
-    apply_figure_style()
-    brain_regions = get_brain_regions("speech")
-    fig, axes = make_population_figure(len(brain_regions), len(WINDOW_ORDER))
-    fig.suptitle("speech PCA by FT and VOT", fontsize=16)
-
-    plotted_panels = 0
+def save_feature_figure(feature_name: str, feature_index: int) -> None:
+    """Save one speech PCA figure colored by a single speech feature."""
+    brain_regions = get_plot_brain_regions("speech")
+    target_neurons = get_target_neuron_count("speech")
+    fig, axes = plt.subplots(
+        len(brain_regions),
+        len(WINDOW_ORDER),
+        figsize=(4.0 * len(WINDOW_ORDER), 3.5 * len(brain_regions)),
+        squeeze=False,
+        constrained_layout=True,
+    )
+    fig.suptitle(f"speech PCA colored by {feature_name} (n={target_neurons} neurons per region)", fontsize=16, fontweight="bold")
+    last_scatter = None
     for row_index, brain_area in enumerate(brain_regions):
-        for window_index, window_name in enumerate(WINDOW_ORDER):
-            dataset = build_population_dataset("speech", window_name, brain_area)
-            ft_ax = axes[row_index, 2 * window_index]
-            vot_ax = axes[row_index, 2 * window_index + 1]
+        for col_index, window_name in enumerate(WINDOW_ORDER):
+            ax = axes[row_index, col_index]
+            dataset = build_sampled_dataset("speech", window_name, brain_area, n_neurons=target_neurons)
             if dataset is None:
-                ft_ax.set_visible(False)
-                vot_ax.set_visible(False)
+                ax.axis("off")
                 continue
-
             summary = compute_pca_summary(dataset["X"])
             scores = summary["scores"]
             explained = summary["explained_variance_ratio"]
-            ft_labels = dataset["Y"][:, 0]
-            vot_labels = dataset["Y"][:, 1]
-
-            for ax, label_name, label_values in ((ft_ax, "FT", ft_labels), (vot_ax, "VOT", vot_labels)):
-                scatter = ax.scatter(
-                    scores[:, 0],
-                    scores[:, 1],
-                    c=label_values,
-                    cmap="viridis",
-                    **DEFAULT_SCATTER_KWARGS,
-                )
-                ax.set_title(f"{format_panel_title(brain_area, window_name)} {label_name}")
-                ax.set_xlabel(f"PC1 ({explained[0] * 100:.1f}%)")
-                ax.set_ylabel(f"PC2 ({explained[1] * 100:.1f}%)")
-                ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.25)
-                plt.colorbar(scatter, ax=ax)
-                plotted_panels += 1
-
-    if plotted_panels == 0:
-        plt.close(fig)
-        return
-
-    fig.savefig(get_figure_dir() / "speech_ft_vot_pca.png", dpi=200)
+            color_values = dataset["Y"][:, feature_index]
+            last_scatter = ax.scatter(scores[:, 0], scores[:, 1], c=color_values, cmap="viridis", s=24, alpha=0.85)
+            ax.set_title(format_panel_title(brain_area, window_name), fontweight="bold")
+            ax.set_xlabel(f"PC1 ({explained[0] * 100:.1f}%)")
+            ax.set_ylabel(f"PC2 ({explained[1] * 100:.1f}%)")
+            ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.25)
+    if last_scatter is not None:
+        colorbar = fig.colorbar(last_scatter, ax=fig.axes, location="bottom", fraction=0.03, pad=0.04)
+        colorbar.set_label(f"{feature_name} value", fontsize=12)
+    fig.savefig(get_figure_dir() / f"speech_pca_{feature_name.lower()}.png", dpi=300)
     plt.close(fig)
+
+
+def main() -> None:
+    """Run the speech PCA FT and VOT figures."""
+    apply_figure_style()
+    save_feature_figure("FT", 0)
+    save_feature_figure("VOT", 1)
 
 
 if __name__ == "__main__":
