@@ -1,25 +1,21 @@
 from matplotlib import cm
-import numpy as np
-import os
-from jaratoolbox import settings
 
 SPEECH_SUBJECTS = ['feat004', 'feat005', 'feat006', 'feat007', 'feat008', 'feat009', 'feat010']
 SUBJECTS = ['feat014', 'feat015', 'feat016', 'feat017', 'feat018', 'feat019']
-# 'feat001', 'feat011','feat014', 'feat015', 'feat016', 'feat017', 'feat018', 'feat019'
 
-# -- About natural sounds --
+# natural sounds sound categories (4 of each)
 SOUND_CATEGORIES = ['Frogs', 'Crickets', 'Streamside', 'Bubbling', 'Bees']
 
 recordingDate_list = {
     'feat001': ['2021-11-09', '2021-11-11', '2021-11-16', '2021-11-17', '2021-11-18', '2021-11-19'],
-    'feat004': [('2022-01-11'), ('2022-01-19'), ('2022-01-21')],
-    'feat005': [('2022-02-07'), ('2022-02-08'), ('2022-02-11'), ('2022-02-14'), ('2022-02-15'), ('2022-02-16')],
-    'feat006': [('2022-02-21'), ('2022-02-22'), ('2022-02-24'), ('2022-02-25'), ('2022-02-26'),
-                ('2022-02-28'), ('2022-03-01'), ('2022-03-02')],
-    'feat007': [('2022-03-10'), ('2022-03-11'), ('2022-03-15'), ('2022-03-16'), ('2022-03-18'), ('2022-03-21')],
-    'feat008': [('2022-03-23'), ('2022-03-24'), ('2022-03-25')],
-    'feat009': [('2022-06-04'), ('2022-06-05'), ('2022-06-06'), ('2022-06-07'), ('2022-06-09'), ('2022-06-10')],
-    'feat010': [('2022-06-21'), ('2022-06-22'), ('2022-06-27'), ('2022-06-28'), ('2022-06-30')],
+    'feat004': ['2022-01-11', '2022-01-19', '2022-01-21'],
+    'feat005': ['2022-02-07', '2022-02-08', '2022-02-11', '2022-02-14', '2022-02-15', '2022-02-16'],
+    'feat006': ['2022-02-21', '2022-02-22', '2022-02-24', '2022-02-25', '2022-02-26',
+                '2022-02-28', '2022-03-01', '2022-03-02'],
+    'feat007': ['2022-03-10', '2022-03-11', '2022-03-15', '2022-03-16', '2022-03-18', '2022-03-21'],
+    'feat008': ['2022-03-23', '2022-03-24', '2022-03-25'],
+    'feat009': ['2022-06-04', '2022-06-05', '2022-06-06', '2022-06-07', '2022-06-09', '2022-06-10'],
+    'feat010': ['2022-06-21', '2022-06-22', '2022-06-27', '2022-06-28', '2022-06-30'],
     'feat011': ['2022-11-16', '2022-11-18', '2022-11-20', '2022-11-21', '2022-11-22'],
     'feat014': ['2024-02-22', '2024-02-28', '2024-02-29', '2024-03-04', '2024-03-06', '2024-03-08', '2024-03-09'],
     'feat015': ['2024-02-23', '2024-02-27', '2024-02-28', '2024-03-01', '2024-03-06', '2024-03-20', '2024-03-21',
@@ -37,35 +33,10 @@ DATABASE_PATH = '/Volumes/NardociData/jarahubdata/figuresdata/'
 figSavePath = "/Users/zoetomlinson/Desktop/MurrayLab/figures/"
 dbSavePath = "/Users/zoetomlinson/Desktop/MurrayLab/AudPopAnalysis/data/"
 
-
 targetSiteNames = ["Primary auditory area", "Dorsal auditory area", "Ventral auditory area", "Posterior auditory area"]
-max_trials = {'PT': 640, 'AM': 220, 'speech': 381}
 leastCellsArea = 10000
-evoked_start = 0.015
-evoked_end = 0.3
-pt_evoked_end = 0.1
-binWidth = 0.01
-periodsNameSpeech = ['base200', 'respOnset', 'respSustained']
-allPeriodsSpeech = [[-0.2, 0], [0, 0.12], [0.12, 0.24]]
-timeRangeSpeech = [allPeriodsSpeech[0][0], allPeriodsSpeech[-1][-1]]
-binSize = 0.005
-data_dict = {}
-binEdges = np.arange(evoked_start, evoked_end, binWidth)
-binEdgesPT = np.arange(evoked_start, pt_evoked_end, binWidth)
-binEdgesSpeech = np.arange(allPeriodsSpeech[1][0], allPeriodsSpeech[1][1], binSize)
-sound_type_load = [("speech", "FTVOTBorders"), ("AM", "AM"), ("PT", "pureTones")]
-min_speech_freq_dict = {(0, 0): 31, (0, 33): 29, (0, 67): 32, (0, 100): 24, (33, 100): 34, (67, 100): 35,
-                        (100, 100): 33, (100, 67): 29, (100, 33): 35, (100, 0): 35, (67, 0): 31, (33, 0): 33}
 unique_labels = [(0, 0), (0, 33), (0, 67), (0, 100), (33, 100), (67, 100),
                  (100, 100), (100, 67), (100, 33), (100, 0), (67, 0), (33, 0)]
-
-# Initialize a dictionary to store counts for each frequency across mouse-date combos
-freq_kept_counts = {tuple(freq): 0 for freq in unique_labels}
-# Initialize an empty dictionary to store the neuron counts for each subject
-
-previous_frequency_speech = None
-previous_frequency_AM = None
-previous_frequency_PT = None
 
 spike_windows = {'pt - onset': [0.0, 0.03],  # [evoked_start, evoked_stop] in s
                  'pt - sustained': [0.03, 0.1],
@@ -79,13 +50,6 @@ spike_windows = {'pt - onset': [0.0, 0.03],  # [evoked_start, evoked_stop] in s
                  'naturalSound - onset': [0.0, 0.5],
                  'naturalSound - sustained': [1, 4],
                  'naturalSound - offset': [4, 4.5]}
-
-short_names = {
-    'Primary auditory area': 'Primary',
-    'Dorsal auditory area':  'Dorsal',
-    'Ventral auditory area': 'Ventral',
-    'Posterior auditory area': 'Posterior'
-}
 
 color_palette = {
     "Primary auditory area - PT": cm.winter(1),      # Dark blue (Winter bottom)
