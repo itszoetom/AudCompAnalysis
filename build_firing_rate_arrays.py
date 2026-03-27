@@ -29,17 +29,14 @@ previous_freq = None
 
 def load_speech_data(subject, date, targetSiteName):
     """Load one speech session for a subject, date, and brain area."""
-    databaseDir = os.path.join(params.DATABASE_PATH, '2024popanalysis')
-    fullPath = os.path.join(databaseDir, 'celldb_2024popanalysis.h5')
-    fullDb = celldatabase.load_hdf(fullPath)
-    simpleSiteNames = fullDb["recordingSiteName"].str.split(',').apply(lambda x: x[0])
-    fullDb["recordingSiteName"] = simpleSiteNames
+    fullDb = celldatabase.load_hdf(params.fullPath_Speech)
+    fullDb["recordingSiteName"] = fullDb["recordingSiteName"].str.split(',').apply(lambda x: x[0])
     celldb = fullDb[(fullDb.subject == subject)]
     celldbSubset = celldb[(celldb.date == date)]
     celldbSubset = celldbSubset[(celldbSubset.recordingSiteName == targetSiteName)]
 
     if celldbSubset.empty:
-        print(f"No data in {targetSiteName} on {date} for Speech, AM, and PT.")
+        print(f"No data in {targetSiteName} on {date} for Speech")
         return None, None, None
 
     ensemble = ephyscore.CellEnsemble(celldbSubset)
@@ -71,50 +68,24 @@ def normalize_speech_firing_rate(spikesPerSecEvoked, targetSiteName):
     trialMeans = spikesPerSecEvoked.mean(axis=1)
     spikesPerSecEvokedNormalized = spikesPerSecEvoked.T - trialMeans
     spikesPerSecEvokedNormalized = spikesPerSecEvokedNormalized.T
+    Y_brain_area_array = [targetSiteName] * spikesPerSecEvokedNormalized.shape[0]
 
-    if spikesPerSecEvokedNormalized.shape[1] > params.leastCellsArea:
-        subsetIndex = np.random.choice(spikesPerSecEvokedNormalized.shape[1], params.leastCellsArea, replace=False)
-        spikeRateNormalized = spikesPerSecEvokedNormalized[:, subsetIndex]
-    else:
-        spikeRateNormalized = spikesPerSecEvokedNormalized
-
-    Y_brain_area_array = [targetSiteName] * spikeRateNormalized.shape[0]
-
-    return spikeRateNormalized, Y_brain_area_array
+    return spikesPerSecEvokedNormalized, Y_brain_area_array
 
 
-def clean_speech_data(X, Y_freq):
+def clean_speech_data(X, Y_freq, n=20):
     """Keep the first `n` repetitions per speech token and sort trials consistently."""
-    n = 20  # Number of trials to keep per sound type
-
     Y_freq_array = Y_freq[0] if isinstance(Y_freq, list) else Y_freq
 
-    valid_indices = []
-    freq_kept_counts = {}
+    df = pd.DataFrame(Y_freq_array)
+    valid_indices = df.groupby(list(df.columns)).head(n).index.tolist()
 
-    for i, freq in enumerate(Y_freq_array):
-        freq_tuple = tuple(freq)
-        if freq_tuple not in freq_kept_counts:
-            freq_kept_counts[freq_tuple] = 0
-        if freq_kept_counts[freq_tuple] < n:
-            valid_indices.append(i)
-            freq_kept_counts[freq_tuple] += 1
+    X_filtered = X[:, valid_indices]
+    Y_filtered = Y_freq_array[valid_indices]
 
-    print(f"Trials kept per sound type: {n}")
+    sort_indices = np.lexsort((Y_filtered[:, 1], Y_filtered[:, 0]))
 
-    total_trials = n * len(freq_kept_counts)
-
-    X_transposed = X.T
-    X_filtered = X_transposed[valid_indices[:total_trials]]
-    X_filtered = X_filtered.T
-    Y_freq_filtered = Y_freq_array[valid_indices[:total_trials]]
-
-    indices_speech = np.lexsort((Y_freq_filtered[:, 1], Y_freq_filtered[:, 0]))
-    Y_freq_sorted = Y_freq_filtered[indices_speech]
-    X_sorted = X_filtered[:, indices_speech]
-    previous_freq = deepcopy(Y_freq_sorted)
-
-    return X_sorted, Y_freq_sorted, previous_freq, indices_speech
+    return X_filtered[:, sort_indices], Y_filtered[sort_indices], deepcopy(Y_filtered[sort_indices]), sort_indices
 
 
 def sort_speech_arrays(X_list, indices):
@@ -137,10 +108,6 @@ def save_speech_data():
     sessionIDs = []
 
     for window_name in WINDOW_NAMES:
-        if len(data[window_name]['X']) == 0:
-            print(f"No data for speech - {window_name}, skipping...")
-            continue
-
         X_array = np.concatenate(data[window_name]['X'], axis=0)
 
         if window_name == 'onset':
@@ -154,14 +121,11 @@ def save_speech_data():
         elif window_name == 'offset':
             offset_X = X_array
 
-    if len(onset_X) == 0 and len(sustained_X) == 0 and len(offset_X) == 0:
-        print(f"No data for speech, skipping...")
-
     fr_arrays_filename = os.path.join(params.dbSavePath, f'fr_arrays_speech.npz')
     print(f"Saving speech data to {fr_arrays_filename}")
-    print(f"  Onset shape: {onset_X.shape if len(onset_X) > 0 else 'N/A'}")
-    print(f"  Sustained shape: {sustained_X.shape if len(sustained_X) > 0 else 'N/A'}")
-    print(f"  Offset shape: {offset_X.shape if len(offset_X) > 0 else 'N/A'}")
+    print(f"  Onset shape: {onset_X.shape}")
+    print(f"  Sustained shape: {sustained_X.shape}")
+    print(f"  Offset shape: {offset_X.shape}")
     print(f"  Brain regions: {brain_regions.shape}")
     print(f"  Stim: {stim_array.shape}")
     print(f"  Unique mice: {np.unique(mouseIDs)}")
@@ -204,8 +168,7 @@ def calculate_fr_arrays(celldb: pd.DataFrame, stimType: str, stimVar: str, timeR
     sessionID = np.empty(n_cells, object)
 
     for indCell, (indRow, dbRow) in enumerate(
-        tqdm(celldb.iterrows(), total=len(celldb), desc=f"Calculating firing rates for {stimType}")
-    ):
+        tqdm(celldb.iterrows(), total=len(celldb), desc=f"Calculating firing rates for {stimType}")):
         oneCell = ephyscore.Cell(dbRow)
         ephysData, bdata = oneCell.load(stimType)
 
@@ -258,7 +221,16 @@ def calculate_fr_arrays(celldb: pd.DataFrame, stimType: str, stimVar: str, timeR
 def save_non_speech_arrays(stimType, fr_arrays):
     """Save one non-speech firing-rate array set to disk."""
     fr_arrays_filename = os.path.join(params.dbSavePath, f'fr_arrays_{stimType}.npz')
-    print(f"Saving firing rate arrays to {fr_arrays_filename}")
+
+    print(f"Saving {stimType} data to {fr_arrays_filename}")
+    print(f"  Onset shape: {fr_arrays[0].shape}")
+    print(f"  Sustained shape: {fr_arrays[1].shape}")
+    print(f"  Offset shape: {fr_arrays[2].shape}")
+    print(f"  Brain regions: {fr_arrays[3].shape}")
+    print(f"  Stim: {fr_arrays[4].shape}")
+    print(f"  Unique mice: {np.unique(fr_arrays[5])}")
+    print(f"  Unique sessions: {len(np.unique(fr_arrays[6]))}")
+
     np.savez(
         fr_arrays_filename,
         basefr=fr_arrays[0],
@@ -274,23 +246,20 @@ def save_non_speech_arrays(stimType, fr_arrays):
 
 
 # Main processing loop
-print("Loading all sessions...")
+print("Loading speech data sessions...")
 for subject in params.SPEECH_SUBJECTS:
     print(f"\nProcessing subject: {subject}")
-
     for date in params.recordingDate_list[subject]:
         for targetSiteName in params.targetSiteNames:
             print(f"  Date: {date}, Brain area: {targetSiteName}")
-
             ensemble, ephys, bdata = load_speech_data(subject, date, targetSiteName)
             if ensemble is None:
                 print(f"      No data for {subject}, {date}, {targetSiteName}, speech")
                 continue
 
             session_data = {'onset': None, 'sustained': None, 'offset': None}
-            time_range = [0.0, 0.7]
             eventOnsetTimes = ephys['events']['stimOn']
-            ensemble.eventlocked_spiketimes(eventOnsetTimes, time_range)
+            ensemble.eventlocked_spiketimes(eventOnsetTimes, params.speech_time_range)
 
             speech_windows = {k: v for k, v in params.spike_windows.items() if k.startswith('speech')}
 
@@ -300,23 +269,13 @@ for subject in params.SPEECH_SUBJECTS:
                 print(f"      Window: {window_name}")
                 spikesPerSecEvoked, Y_frequency = calculate_speech_firing_rate(window, ensemble, bdata)
                 X, y_brain = normalize_speech_firing_rate(spikesPerSecEvoked, targetSiteName)
-                result = clean_speech_data(X, Y_frequency)
-
-                if result is None:
-                    print(f"        Skipping due to insufficient data")
-                    session_data = {'onset': None, 'sustained': None, 'offset': None}
-                    break
-
-                X_clean, Y_freq_clean, previous_freq, indices = result
-                Y_freq = Y_freq_clean
-
+                X_clean, Y_freq, previous_freq, indices =  clean_speech_data(X, Y_frequency)
                 session_data[window_name] = X_clean
 
                 print(f"        Processed {X_clean.shape[0]} neurons × {X_clean.shape[1]} trials")
 
             if session_data['onset'] is not None:
                 n_neurons = session_data['onset'].shape[0]
-
                 for window_name in WINDOW_NAMES:
                     if session_data[window_name] is not None:
                         data[window_name]['X'].append(session_data[window_name])
@@ -330,14 +289,8 @@ for subject in params.SPEECH_SUBJECTS:
 
                 Y_brain_all.extend(y_brain)
 
-print("\nBuilding population arrays...")
+print("\nBuilding speech population arrays...")
 population_data = {}
-
-if len(X_all['onset']) == 0:
-    print(f"No data collected for speech, skipping population arrays")
-
-population_data = {}
-
 for window_name in WINDOW_NAMES:
     population_data[window_name] = {}
 
@@ -351,61 +304,43 @@ for window_name in WINDOW_NAMES:
     for brain_area in params.targetSiteNames:
         X_brain_area = X_array[Y_brain_array == brain_area]
 
-        if len(X_brain_area) > 0:
-            X_brain_area = X_brain_area.T
-            n_neurons = X_brain_area.shape[1]
-            Y_brain_this_area = [brain_area] * n_neurons
+        X_brain_area = X_brain_area.T
+        n_neurons = X_brain_area.shape[1]
+        Y_brain_this_area = [brain_area] * n_neurons
 
-            population_data[window_name][brain_area] = {
-                'X': X_brain_area,  # (trials × neurons)
-                'Y_freq': Y_freq_array,  # (trials,)
-                'Y_brain': Y_brain_this_area  # (neurons,)
-            }
+        population_data[window_name][brain_area] = {
+            'X': X_brain_area,  # (trials × neurons)
+            'Y_freq': Y_freq_array,  # (trials,)
+            'Y_brain': Y_brain_this_area  # (neurons,)
+        }
 
-            print(f"  {brain_area}: {X_brain_area.shape}")
+        print(f"  {brain_area}: {X_brain_area.shape}")
 
-print("\nDone with population arrays!")
 
 print("\nSaving session-level data...")
 save_speech_data()
 print("Done!")
 
 
-dbPath = os.path.join(params.DATABASE_PATH, params.STUDY_NAME)
-dbCoordsFilename = os.path.join(dbPath, f'celldb_{params.STUDY_NAME}_coords.h5')
-celldb = celldatabase.load_hdf(dbCoordsFilename)
+celldb = celldatabase.load_hdf(params.fullPath)
 simpleSiteNames = celldb['recordingSiteName'].str.split(',').apply(lambda x: x[0])
 simpleSiteNames.name = 'simpleSiteName'
 celldb = pd.concat([celldb, simpleSiteNames], axis=1)
-
 celldb_subset = celldb[celldb['simpleSiteName'].isin(params.targetSiteNames)].reset_index()
 
-if 1:
-    stimType = 'naturalSound'
-    stimVar = 'soundID'
-    timeRange = [-2, 6]
-    allPeriods = [[-1, 0], [0, 0.5], [1, 4], [4, 4.5]]
 
-    print("Calculating firing rates for natural sounds")
-    fr_arrays = calculate_fr_arrays(celldb_subset, stimType, stimVar, timeRange, allPeriods)
-    save_non_speech_arrays(stimType, fr_arrays)
+print("Calculating firing rates for natural sounds")
+fr_arrays = calculate_fr_arrays(celldb_subset, 'naturalSound',
+                                params.naturalStimVar, params.NS_timeRange, params.natSounds_allPeriods)
+save_non_speech_arrays('naturalSound', fr_arrays)
 
-if 1:
-    stimType = 'AM'
-    stimVar = 'currentFreq'
-    timeRange = [-0.5, 1.5]
-    allPeriods = [[-0.5, 0], [0, 0.2], [0.2, 0.5], [0.5, 0.7]]
 
-    print("Calculating firing rates for AM")
-    fr_arrays = calculate_fr_arrays(celldb_subset, stimType, stimVar, timeRange, allPeriods)
-    save_non_speech_arrays(stimType, fr_arrays)
+print("Calculating firing rates for AM")
+fr_arrays = calculate_fr_arrays(celldb_subset, 'AM',
+                                params.simpleStimVar, params.AM_timeRange, params.natSounds_allPeriods)
+save_non_speech_arrays('AM', fr_arrays)
 
-if 1:
-    stimType = 'pureTones'
-    stimVar = 'currentFreq'
-    timeRange = [-0.1, 0.3]
-    allPeriods = [[-0.1, 0], [0, 0.05], [0.05, 0.1], [0.1, 0.15]]
-
-    print("Calculating firing rates for pure tone sounds")
-    fr_arrays = calculate_fr_arrays(celldb_subset, stimType, stimVar, timeRange, allPeriods)
-    save_non_speech_arrays(stimType, fr_arrays)
+print("Calculating firing rates for pure tone sounds")
+fr_arrays = calculate_fr_arrays(celldb_subset, 'pureTones',
+                                params.simpleStimVar, params.PT_timeRange, params.natSounds_allPeriods)
+save_non_speech_arrays('pureTones', fr_arrays)

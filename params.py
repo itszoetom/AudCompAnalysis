@@ -1,13 +1,9 @@
 """Shared subjects, paths, spike windows, stimulus metadata, and plot colors for all analyses."""
 
 from matplotlib import cm
+import os
 
-SPEECH_SUBJECTS = ['feat004', 'feat005', 'feat006', 'feat007', 'feat008', 'feat009', 'feat010']
-SUBJECTS = ['feat014', 'feat015', 'feat016', 'feat017', 'feat018', 'feat019']
-
-# natural sounds sound categories (4 of each)
-SOUND_CATEGORIES = ['Frogs', 'Crickets', 'Streamside', 'Bubbling', 'Bees']
-
+# --- Data Parameters for Loading and Preprocesing ---
 recordingDate_list = {
     'feat001': ['2021-11-09', '2021-11-11', '2021-11-16', '2021-11-17', '2021-11-18', '2021-11-19'],
     'feat004': ['2022-01-11', '2022-01-19', '2022-01-21'],
@@ -28,18 +24,7 @@ recordingDate_list = {
                 '2024-06-17', '2024-06-18', '2024-06-26', '2024-06-27'],
     'feat019': ['2024-06-12', '2024-06-13', '2024-06-14', '2024-06-17', '2024-06-18', '2024-06-19', '2024-06-27',
                 '2024-06-28']}
-
-STUDY_NAME = '2025acpop'
-SPEECH_STUDY_NAME = '2024popanalysis'
-DATABASE_PATH = '/Volumes/NardociData/jarahubdata/figuresdata/'
-figSavePath = "/Users/zoetomlinson/Desktop/MurrayLab/figures/"
-dbSavePath = "/Users/zoetomlinson/Desktop/MurrayLab/AudPopAnalysis/data/"
-
 targetSiteNames = ["Primary auditory area", "Dorsal auditory area", "Ventral auditory area", "Posterior auditory area"]
-leastCellsArea = 10000
-unique_labels = [(0, 0), (0, 33), (0, 67), (0, 100), (33, 100), (67, 100),
-                 (100, 100), (100, 67), (100, 33), (100, 0), (67, 0), (33, 0)]
-
 spike_windows = {'pt - onset': [0.0, 0.03],  # [evoked_start, evoked_stop] in s
                  'pt - sustained': [0.03, 0.1],
                  'pt - offset': [0.1, 0.13],
@@ -53,6 +38,47 @@ spike_windows = {'pt - onset': [0.0, 0.03],  # [evoked_start, evoked_stop] in s
                  'naturalSound - sustained': [1, 4],
                  'naturalSound - offset': [4, 4.5]}
 
+# --- Paths ---
+DATABASE_PATH = '/Volumes/NardociData/jarahubdata/figuresdata/'
+figSavePath = "/Users/zoetomlinson/Desktop/MurrayLab/figures/"
+dbSavePath = "/Users/zoetomlinson/Desktop/MurrayLab/AudPopAnalysis/data/"
+
+# --- Speech Data Preprocessing ---
+SPEECH_STUDY_NAME = '2024popanalysis'
+SPEECH_SUBJECTS = ['feat004', 'feat005', 'feat006', 'feat007', 'feat008', 'feat009', 'feat010']
+databaseDir = os.path.join(DATABASE_PATH, SPEECH_STUDY_NAME)
+fullPath_Speech = os.path.join(databaseDir, 'celldb_2024popanalysis.h5')
+leastCellsArea = 10000
+unique_labels = [(0, 0), (0, 33), (0, 67), (0, 100), (33, 100), (67, 100),
+                 (100, 100), (100, 67), (100, 33), (100, 0), (67, 0), (33, 0)]
+# TODO: change speech to use speech_allPeriods instead of speech_time_range and spike_windows
+speech_allPeriods = [[-0.5, 0], [0, 0.2], [0.2, 0.5], [0.5, 0.7]]
+speech_time_range = [0.0, 0.7]
+
+# --- PT, AM and NS Data Preprocessing ---
+STUDY_NAME = '2025acpop'
+SUBJECTS = ['feat014', 'feat015', 'feat016', 'feat017', 'feat018', 'feat019']
+dbPath = os.path.join(DATABASE_PATH, STUDY_NAME)
+fullPath = os.path.join(dbPath, f'celldb_2025acpop_coords.h5')
+
+# Natural Sounds
+NAT_SOUND_CATEGORIES = ['Frogs', 'Crickets', 'Streamside', 'Bubbling', 'Bees'] # natural sounds categories (4 of each)
+NS_timeRange = [-2, 6]
+naturalStimVar = "soundID"
+natSounds_allPeriods = [[-1, 0], [0, 0.5], [1, 4], [4, 4.5]] # base onset sustained offset
+
+# Simple Sounds - Amplitude Modulated White Noise and Pure Tones
+simpleStimVar = "currentFreq"
+AM_allPeriods = [[-0.5, 0], [0, 0.2], [0.2, 0.5], [0.5, 0.7]]
+AM_timeRange = [-0.5, 1.5]
+PT_allPeriods = [[-0.1, 0], [0, 0.05], [0.05, 0.1], [0.1, 0.15]]
+PT_timeRange = [-0.1, 0.3]
+
+
+
+
+
+# --- Visualization Settings ---
 color_palette = {
     "Primary auditory area - PT": cm.winter(1),      # Dark blue (Winter bottom)
     "Primary auditory area - AM": cm.winter(0.66),      # Medium blue (Winter middle)
