@@ -185,3 +185,31 @@ short_names = {
     "Ventral auditory area": "Ventral",
     "Posterior auditory area": "Posterior",
 }
+
+
+BEHAVIOR_PATH = '/Volumes/NardociData/behavior'
+
+EPHYS_PATH = '/data/ephys'  # For Intan data
+EPHYS_NEUROPIX_PATH = '/Volumes/NardociData/ephys/neuropixels/' # For Neuropixels data
+
+HISTOLOGY_PATH = '/Volumes/NardociData/jarashare/histology'
+
+FIGURES_DATA_PATH = '/Volumes/NardociData/jarahubdata/figuresdata/2025acpop/' # Intermediate data for subfigures
+
+SAVE_PATH = "/Users/zoetomlinson/Desktop/MurrayLab/neuronalDataResearch/Figures/"
+
+INFOREC_PATH = '/Users/zoetomlinson/Desktop/MurrayLab/jarainfo/inforecordings/'
+
+INFOHIST_PATH = '/Users/zoetomlinson/Desktop/MurrayLab/jarainfo/infohistology/'
+
+DATABASE_PATH = '/Volumes/NardociData/jarahubdata/figuresdata/'
+
+ALLEN_ATLAS_PATH = '/Volumes/NardociData/atlas/AllenCCF_25/'
+
+ALLEN_SDK_CACHE_PATH = '/var/tmp/allensdk_cache'
+
+TEMP_OUTPUT_PATH = '/tmp/'
+
+SOUNDS_PATH = '/mnt/jarahubdata/jarasounds/'
+
+

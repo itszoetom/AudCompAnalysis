@@ -3,6 +3,11 @@
 from __future__ import annotations
 
 import matplotlib.pyplot as plt
+try:
+    from tqdm.auto import tqdm
+except ImportError:  # pragma: no cover
+    def tqdm(iterable=None, *args, total=None, **kwargs):
+        return iterable if iterable is not None else range(total or 0)
 
 try:
     from .pca_analysis import (
@@ -41,22 +46,27 @@ def save_feature_figure(feature_name: str, feature_index: int) -> None:
     )
     fig.suptitle(f"speech PCA colored by {feature_name} (n={target_neurons} neurons per region)", fontsize=16, fontweight="bold")
     last_scatter = None
-    for row_index, brain_area in enumerate(brain_regions):
-        for col_index, window_name in enumerate(WINDOW_ORDER):
-            ax = axes[row_index, col_index]
-            dataset = build_sampled_dataset("speech", window_name, brain_area, n_neurons=target_neurons)
-            if dataset is None:
-                ax.axis("off")
-                continue
-            summary = compute_pca_summary(dataset["X"])
-            scores = summary["scores"]
-            explained = summary["explained_variance_ratio"]
-            color_values = dataset["Y"][:, feature_index]
-            last_scatter = ax.scatter(scores[:, 0], scores[:, 1], c=color_values, cmap="viridis", s=24, alpha=0.85)
-            ax.set_title(format_panel_title(brain_area, window_name), fontweight="bold")
-            ax.set_xlabel(f"PC1 ({explained[0] * 100:.1f}%)")
-            ax.set_ylabel(f"PC2 ({explained[1] * 100:.1f}%)")
-            ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.25)
+    panel_conditions = [(row_index, brain_area, col_index, window_name) for row_index, brain_area in enumerate(brain_regions) for col_index, window_name in enumerate(WINDOW_ORDER)]
+    for row_index, brain_area, col_index, window_name in tqdm(
+        panel_conditions,
+        desc=f"Speech PCA {feature_name}",
+        unit="panel",
+        dynamic_ncols=True,
+    ):
+        ax = axes[row_index, col_index]
+        dataset = build_sampled_dataset("speech", window_name, brain_area, n_neurons=target_neurons)
+        if dataset is None:
+            ax.axis("off")
+            continue
+        summary = compute_pca_summary(dataset["X"])
+        scores = summary["scores"]
+        explained = summary["explained_variance_ratio"]
+        color_values = dataset["Y"][:, feature_index]
+        last_scatter = ax.scatter(scores[:, 0], scores[:, 1], c=color_values, cmap="viridis", s=24, alpha=0.85)
+        ax.set_title(format_panel_title(brain_area, window_name), fontweight="bold")
+        ax.set_xlabel(f"PC1 ({explained[0] * 100:.1f}%)")
+        ax.set_ylabel(f"PC2 ({explained[1] * 100:.1f}%)")
+        ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.25)
     if last_scatter is not None:
         colorbar = fig.colorbar(last_scatter, ax=fig.axes, location="bottom", fraction=0.03, pad=0.04)
         colorbar.set_label(f"{feature_name} value", fontsize=12)
@@ -67,6 +77,7 @@ def save_feature_figure(feature_name: str, feature_index: int) -> None:
 def main() -> None:
     """Run the speech PCA FT and VOT figures."""
     apply_figure_style()
+    print("Building speech PCA figures colored by FT and VOT...")
     save_feature_figure("FT", 0)
     save_feature_figure("VOT", 1)
 

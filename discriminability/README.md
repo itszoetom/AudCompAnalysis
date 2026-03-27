@@ -37,5 +37,13 @@ Statistical tests:
 - `lda/analysis.py`
 - `lda/plot.py`
 - `run_all_analyses.py`
-- `run_all_plots.py`
 - `run_all.py`
+
+## Canonical entry points
+- `python discriminability/run_all.py`
+  runs the full discriminability pipeline
+- `python discriminability/run_all_analyses.py`
+  runs Pearson, linear SVM, and LDA analyses
+
+## Notes
+- long-running analyses include `tqdm` progress bars and stage-level print statements

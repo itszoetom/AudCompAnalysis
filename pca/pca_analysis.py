@@ -17,7 +17,6 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import funcs  # noqa: E402
 import params  # noqa: E402
 
 WINDOW_ORDER = ("onset", "sustained", "offset")
@@ -133,6 +132,10 @@ def format_speech_label(label: tuple[int, int] | np.ndarray) -> str:
 def natural_sound_labels() -> list[str]:
     """Return written natural-sound labels in the stored presentation order."""
     return params.NAT_SOUND_LABELS
+
+
+def calculate_participation_ratio(explained_variance_ratio):
+    return ((np.sum(explained_variance_ratio)) ** 2) / np.sum(explained_variance_ratio ** 2)
 
 
 def stimulus_tick_labels(sound_type: str, stim_array: np.ndarray) -> list[str]:
@@ -315,7 +318,7 @@ def compute_pca_summary(x: np.ndarray) -> dict[str, np.ndarray]:
     return {
         "scores": scores,
         "explained_variance_ratio": explained,
-        "participation_ratio": funcs.calculate_participation_ratio(explained),
+        "participation_ratio": calculate_participation_ratio(explained),
         "n_neurons": x.shape[1],
         "n_trials": x.shape[0],
     }

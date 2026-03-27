@@ -10,6 +10,11 @@ from sklearn.linear_model import RidgeCV
 from sklearn.metrics import r2_score
 from sklearn.model_selection import KFold
 from sklearn.preprocessing import StandardScaler
+try:
+    from tqdm.auto import tqdm
+except ImportError:  # pragma: no cover
+    def tqdm(iterable=None, *args, total=None, **kwargs):
+        return iterable if iterable is not None else range(total or 0)
 
 import params
 
@@ -28,7 +33,7 @@ try:
 except ImportError:
     from ridge_analysis import apply_figure_style, get_output_dir
 
-ALPHAS = np.logspace(-3, 3, 20)
+ALPHAS = np.logspace(-10, 5, 200)
 
 
 def score_session_dataset(x: np.ndarray, y: np.ndarray, log_target: bool) -> float:
@@ -42,7 +47,11 @@ def score_session_dataset(x: np.ndarray, y: np.ndarray, log_target: bool) -> flo
         scaler = StandardScaler()
         x_train = scaler.fit_transform(x_train)
         x_test = scaler.transform(x_test)
-        ridge = RidgeCV(alphas=ALPHAS)
+        ridge = RidgeCV(
+            alphas=ALPHAS,
+            cv=KFold(n_splits=min(5, len(x_train)), shuffle=True, random_state=42),
+            scoring="r2",
+        )
         ridge.fit(x_train, y_train)
         scores.append(r2_score(y_test, ridge.predict(x_test)))
     return float(np.mean(scores))
@@ -51,42 +60,52 @@ def score_session_dataset(x: np.ndarray, y: np.ndarray, log_target: bool) -> flo
 def build_session_frame(sound_type: str, n_neurons: int = 30, n_subsamples: int = 100) -> pd.DataFrame:
     """Return repeated per-session ridge scores for one sound type."""
     records = []
-    for mouse_id in available_mice(sound_type):
-        for session_id in available_sessions(sound_type, mouse_id=mouse_id):
-            for brain_area in get_brain_regions(sound_type):
-                if sound_type == "speech" and brain_area == "Dorsal auditory area":
-                    continue
-                for window_name in WINDOW_ORDER:
-                    dataset = build_dataset(sound_type, window_name, brain_area, mouse_id=mouse_id, session_id=session_id)
-                    if dataset is None or dataset["X"].shape[1] < n_neurons:
-                        continue
-                    if sound_type == "speech":
-                        targets = [("FT", dataset["Y"][:, 0], False), ("VOT", dataset["Y"][:, 1], False)]
-                    else:
-                        targets = [(sound_type, dataset["Y"], sound_type in {"AM", "PT"})]
-                    rng = np.random.default_rng(42)
-                    for target_name, target_values, log_target in targets:
-                        session_scores = []
-                        for _ in range(n_subsamples):
-                            neuron_idx = rng.choice(dataset["X"].shape[1], size=n_neurons, replace=False)
-                            session_scores.append(score_session_dataset(dataset["X"][:, neuron_idx], target_values, log_target))
-                        records.append(
-                            {
-                                "Mouse": mouse_id,
-                                "Session": session_id,
-                                "Brain Area": brain_area,
-                                "Window": window_name,
-                                "Target": target_name,
-                                "R2 Test": float(np.mean(session_scores)),
-                            }
-                        )
+    conditions = [
+        (mouse_id, session_id, brain_area, window_name)
+        for mouse_id in available_mice(sound_type)
+        for session_id in available_sessions(sound_type, mouse_id=mouse_id)
+        for brain_area in get_brain_regions(sound_type)
+        for window_name in WINDOW_ORDER
+    ]
+    for mouse_id, session_id, brain_area, window_name in tqdm(
+        conditions,
+        desc=f"Per-session ridge ({sound_type})",
+        unit="dataset",
+        dynamic_ncols=True,
+    ):
+        if sound_type == "speech" and brain_area == "Dorsal auditory area":
+            continue
+        dataset = build_dataset(sound_type, window_name, brain_area, mouse_id=mouse_id, session_id=session_id)
+        if dataset is None or dataset["X"].shape[1] < n_neurons:
+            continue
+        if sound_type == "speech":
+            targets = [("FT", dataset["Y"][:, 0], False), ("VOT", dataset["Y"][:, 1], False)]
+        else:
+            targets = [(sound_type, dataset["Y"], sound_type in {"AM", "PT"})]
+        rng = np.random.default_rng(42)
+        for target_name, target_values, log_target in targets:
+            session_scores = []
+            for _ in range(n_subsamples):
+                neuron_idx = rng.choice(dataset["X"].shape[1], size=n_neurons, replace=False)
+                session_scores.append(score_session_dataset(dataset["X"][:, neuron_idx], target_values, log_target))
+            records.append(
+                {
+                    "Mouse": mouse_id,
+                    "Session": session_id,
+                    "Brain Area": brain_area,
+                    "Window": window_name,
+                    "Target": target_name,
+                    "R2 Test": float(np.mean(session_scores)),
+                }
+            )
     return pd.DataFrame(records)
 
 
 def main() -> None:
     """Run per-session ridge boxplot figures."""
     apply_figure_style()
-    for sound_type in ("speech", "AM", "PT", "naturalSound"):
+    for sound_type in tqdm(("speech", "AM", "PT", "naturalSound"), desc="Per-session ridge plots", unit="sound", dynamic_ncols=True):
+        print(f"Running per-session ridge plots for {sound_type}...")
         results_df = build_session_frame(sound_type)
         if results_df.empty:
             continue
@@ -153,6 +172,7 @@ def main() -> None:
                 hue_col="Target" if use_hue else None,
                 hue_order=target_order if use_hue else None,
                 pair_cols=["Mouse", "Session"],
+                test_mode="unpaired",
             )
             add_pairwise_annotations(
                 ax,

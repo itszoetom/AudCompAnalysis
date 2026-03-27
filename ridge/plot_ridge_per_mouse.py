@@ -5,6 +5,11 @@ from __future__ import annotations
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
+try:
+    from tqdm.auto import tqdm
+except ImportError:  # pragma: no cover
+    def tqdm(iterable=None, *args, total=None, **kwargs):
+        return iterable if iterable is not None else range(total or 0)
 
 import params
 
@@ -27,36 +32,46 @@ except ImportError:
 def build_mouse_frame(sound_type: str) -> pd.DataFrame:
     """Return repeated per-mouse ridge scores for one sound type."""
     records = []
-    for mouse_id in available_mice(sound_type):
-        for brain_area in get_brain_regions(sound_type):
-            if sound_type == "speech" and brain_area == "Dorsal auditory area":
-                continue
-            for window_name in WINDOW_ORDER:
-                dataset = build_dataset(sound_type, window_name, brain_area, mouse_id=mouse_id)
-                if dataset is None:
-                    continue
-                if sound_type == "speech":
-                    targets = [("FT", dataset["Y"][:, 0], False), ("VOT", dataset["Y"][:, 1], False)]
-                else:
-                    targets = [(sound_type, dataset["Y"], sound_type in {"AM", "PT"})]
-                for target_name, target_values, log_target in targets:
-                    fit = fit_best_ridge(dataset["X"], target_values, log_target=log_target)
-                    records.append(
-                        {
-                            "Mouse": mouse_id,
-                            "Brain Area": brain_area,
-                            "Window": window_name,
-                            "Target": target_name,
-                            "R2 Test": fit["r2_test"],
-                        }
-                    )
+    conditions = [
+        (mouse_id, brain_area, window_name)
+        for mouse_id in available_mice(sound_type)
+        for brain_area in get_brain_regions(sound_type)
+        for window_name in WINDOW_ORDER
+    ]
+    for mouse_id, brain_area, window_name in tqdm(
+        conditions,
+        desc=f"Per-mouse ridge ({sound_type})",
+        unit="dataset",
+        dynamic_ncols=True,
+    ):
+        if sound_type == "speech" and brain_area == "Dorsal auditory area":
+            continue
+        dataset = build_dataset(sound_type, window_name, brain_area, mouse_id=mouse_id)
+        if dataset is None:
+            continue
+        if sound_type == "speech":
+            targets = [("FT", dataset["Y"][:, 0], False), ("VOT", dataset["Y"][:, 1], False)]
+        else:
+            targets = [(sound_type, dataset["Y"], sound_type in {"AM", "PT"})]
+        for target_name, target_values, log_target in targets:
+            fit = fit_best_ridge(dataset["X"], target_values, log_target=log_target)
+            records.append(
+                {
+                    "Mouse": mouse_id,
+                    "Brain Area": brain_area,
+                    "Window": window_name,
+                    "Target": target_name,
+                    "R2 Test": fit["r2_test"],
+                }
+            )
     return pd.DataFrame(records)
 
 
 def main() -> None:
     """Run per-mouse ridge boxplot figures."""
     apply_figure_style()
-    for sound_type in ("speech", "AM", "PT", "naturalSound"):
+    for sound_type in tqdm(("speech", "AM", "PT", "naturalSound"), desc="Per-mouse ridge plots", unit="sound", dynamic_ncols=True):
+        print(f"Running per-mouse ridge plots for {sound_type}...")
         results_df = build_mouse_frame(sound_type)
         if results_df.empty:
             continue
@@ -123,6 +138,7 @@ def main() -> None:
                 hue_col="Target" if use_hue else None,
                 hue_order=target_order if use_hue else None,
                 pair_cols=["Mouse"],
+                test_mode="unpaired",
             )
             add_pairwise_annotations(
                 ax,

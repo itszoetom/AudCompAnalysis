@@ -4,6 +4,11 @@ from __future__ import annotations
 
 import matplotlib.pyplot as plt
 import numpy as np
+try:
+    from tqdm.auto import tqdm
+except ImportError:  # pragma: no cover
+    def tqdm(iterable=None, *args, total=None, **kwargs):
+        return iterable if iterable is not None else range(total or 0)
 
 try:
     from .pca_analysis import (
@@ -41,15 +46,20 @@ def collect_sound_results(sound_type: str) -> tuple[dict[tuple[str, str], dict[s
     """Collect sampled datasets and PCA summaries for one sound figure."""
     target_neurons = get_target_neuron_count(sound_type)
     results = {}
-    for brain_area in get_plot_brain_regions(sound_type):
-        for window_name in WINDOW_ORDER:
-            dataset = build_sampled_dataset(sound_type, window_name, brain_area, n_neurons=target_neurons)
-            if dataset is None:
-                continue
-            results[(brain_area, window_name)] = {
-                "dataset": dataset,
-                "summary": compute_pca_summary(dataset["X"]),
-            }
+    panel_conditions = [(brain_area, window_name) for brain_area in get_plot_brain_regions(sound_type) for window_name in WINDOW_ORDER]
+    for brain_area, window_name in tqdm(
+        panel_conditions,
+        desc=f"PCA population panels ({sound_type})",
+        unit="panel",
+        dynamic_ncols=True,
+    ):
+        dataset = build_sampled_dataset(sound_type, window_name, brain_area, n_neurons=target_neurons)
+        if dataset is None:
+            continue
+        results[(brain_area, window_name)] = {
+            "dataset": dataset,
+            "summary": compute_pca_summary(dataset["X"]),
+        }
     return results, target_neurons
 
 
@@ -72,9 +82,10 @@ def add_shared_colorbar(fig: plt.Figure, scatter, sound_type: str, stim_array: n
     """Add one shared stimulus colorbar for a sound figure."""
     colorbar = fig.colorbar(scatter, ax=fig.axes, location="bottom", fraction=0.03, pad=0.04)
     color_values = labels_for_sound(sound_type, stim_array)
-    unique_values = np.unique(color_values)
+    tick_labels = stimulus_tick_labels(sound_type, stim_array)
+    unique_values, first_indices = np.unique(color_values, return_index=True)
     colorbar.set_ticks(unique_values)
-    colorbar.set_ticklabels(stimulus_tick_labels(sound_type, stim_array))
+    colorbar.set_ticklabels([tick_labels[index] for index in first_indices])
     colorbar.ax.tick_params(labelsize=8, rotation=35)
     colorbar.set_label("Stimulus", fontsize=12)
 
@@ -153,7 +164,9 @@ def save_scree_figure(sound_type: str, results: dict[tuple[str, str], dict[str, 
 def main() -> None:
     """Run PCA population plots for each available sound type."""
     apply_figure_style()
-    for sound_type in list_available_sound_types():
+    sound_types = list_available_sound_types()
+    for sound_type in tqdm(sound_types, desc="PCA population figures", unit="sound", dynamic_ncols=True):
+        print(f"Building PCA population scatter and scree plots for {sound_type}...")
         results, target_neurons = collect_sound_results(sound_type)
         if not results:
             continue

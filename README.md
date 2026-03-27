@@ -34,6 +34,10 @@ Root:
 `pca/`:
 - `pca_analysis.py`
   shared PCA loading, averaging, labeling, and subsampling helpers
+- `README.md`
+  folder-level run instructions and outputs
+- `run_all.py`
+  runs the full PCA figure set
 - `plot_pca_all_mice.py`
   population PCA scatter and scree plots
 - `plot_pca_all_mice_averages.py`
@@ -46,6 +50,10 @@ Root:
 `ridge/`:
 - `ridge_analysis.py`
   shared ridge-regression helpers and repeated evaluation functions
+- `README.md`
+  folder-level run instructions and outputs
+- `run_all.py`
+  runs the full ridge figure set
 - `plot_ridge_boxplot.py`
   population ridge `R^2` distributions by brain region and spike window
 - `plot_ridge_per_mouse.py`
@@ -58,41 +66,52 @@ Root:
 `methods/`:
 - `methods_analysis.py`
   shared array-loading and figure helpers for methods figures
+- `README.md`
+  folder-level run instructions and outputs
+- `run_all.py`
+  runs the full methods figure set
 - `plot_data_info.py`
-  neuron-count summaries by session, mouse, and brain region
+  combined speech and non-speech neuron-count summaries
 - `plot_single_mouse_psth.py`
-  example PSTH figures
-- `plot_single_mouse_raster.py`
-  example raster figures
+  combined raster-plus-PSTH example figures
 - `plot_single_mouse_spikerate.py`
-  mean response profiles by stimulus
+  example single-neuron firing-rate figure
 
 `discriminability/`:
 - `discriminability_analysis.py`
   shared session-based discriminability pipeline
+- `README.md`
+  folder-level run instructions and outputs
 - `pearson/analysis.py`, `pearson/plot.py`
 - `linearSVM/analysis.py`, `linearSVM/plot.py`
 - `lda/analysis.py`, `lda/plot.py`
 - `run_all_analyses.py`
   runs all discriminability analyses
-- `run_all_plots.py`
-  runs all discriminability plotting scripts
 - `run_all.py`
   runs the full discriminability pipeline
 
 Legacy exploratory discriminability notebooks and scripts are still present in the method subfolders, but the current pipeline is the `analysis.py` and `plot.py` entry points plus the top-level runner scripts.
 
+Project documentation:
+- `THESIS_METHODS_OUTLINE.md`
+  implementation-grounded methods outline for thesis drafting
+
 ## Typical Run Order
 
 1. Run `build_firing_rate_arrays.py`.
-2. Run whichever analysis or figure scripts you need from `pca/`, `ridge/`, `methods/`, or `discriminability/`.
-3. For the discriminability pipeline, use `discriminability/run_all.py` or the separate analysis/plot runners.
+2. Use the canonical folder-level runners:
+   - `python methods/run_all.py`
+   - `python pca/run_all.py`
+   - `python ridge/run_all.py`
+   - `python discriminability/run_all.py`
+3. Use the individual plotting scripts when you only want one figure family.
 
 ## Figure Conventions
 
 - Paper-style figures use serif fonts and `params.color_palette` for region colors.
 - Summary distributions are organized as brain-region comparisons on a shared axis, with one panel per spike window and one figure per sound type.
 - Statistical annotations use Bonferroni-corrected pairwise tests.
+- Ridge summary boxplots use MWU plus Bonferroni correction.
 - Natural-sound discriminability also includes within-category vs between-category summary boxplots.
 
 ## Environment Notes

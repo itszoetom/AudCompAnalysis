@@ -10,6 +10,11 @@ from sklearn.linear_model import RidgeCV
 from sklearn.metrics import r2_score
 from sklearn.model_selection import KFold
 from sklearn.preprocessing import StandardScaler
+try:
+    from tqdm.auto import tqdm
+except ImportError:  # pragma: no cover
+    def tqdm(iterable=None, *args, total=None, **kwargs):
+        return iterable if iterable is not None else range(total or 0)
 
 import params
 
@@ -18,7 +23,7 @@ try:
 except ImportError:
     from ridge_analysis import SOUND_FILE_KEYS, WINDOW_ORDER, WINDOW_TO_KEY, apply_figure_style, get_output_dir
 
-ALPHAS = np.logspace(-3, 3, 20)
+ALPHAS = np.logspace(-10, 5, 200)
 
 
 def load_sound_npz(sound_type: str) -> dict[str, np.ndarray]:
@@ -71,7 +76,11 @@ def fit_population_cv(x: np.ndarray, y: np.ndarray, log_target: bool) -> tuple[f
         scaler = StandardScaler()
         x_train = scaler.fit_transform(x_train)
         x_test = scaler.transform(x_test)
-        ridge = RidgeCV(alphas=ALPHAS)
+        ridge = RidgeCV(
+            alphas=ALPHAS,
+            cv=KFold(n_splits=min(5, len(x_train)), shuffle=True, random_state=42),
+            scoring="r2",
+        )
         ridge.fit(x_train, y_train)
         y_pred = ridge.predict(x_test)
         r2_scores.append(r2_score(y_test, y_pred))
@@ -102,7 +111,8 @@ def plot_panel(ax: plt.Axes, x: np.ndarray, y: np.ndarray, title: str, log_targe
 def main() -> None:
     """Run population ridge predicted-versus-actual figures."""
     apply_figure_style()
-    for sound_type in ("speech", "AM", "PT", "naturalSound"):
+    for sound_type in tqdm(("speech", "AM", "PT", "naturalSound"), desc="Ridge predicted-vs-actual", unit="sound", dynamic_ncols=True):
+        print(f"Building predicted-vs-actual ridge plots for {sound_type}...")
         sound_data = load_sound_npz(sound_type)
         brain_regions = get_plot_brain_regions(sound_type)
         fig, axes = plt.subplots(
@@ -117,21 +127,26 @@ def main() -> None:
             fontsize=16,
             fontweight="bold",
         )
-        for row_index, brain_area in enumerate(brain_regions):
+        panel_conditions = [(row_index, brain_area, col_index, window_name) for row_index, brain_area in enumerate(brain_regions) for col_index, window_name in enumerate(WINDOW_ORDER)]
+        for row_index, brain_area, col_index, window_name in tqdm(
+            panel_conditions,
+            desc=f"Ridge panels ({sound_type})",
+            unit="panel",
+            dynamic_ncols=True,
+        ):
             neuron_indices = sample_neurons(sound_data, sound_type, brain_area)
-            for col_index, window_name in enumerate(WINDOW_ORDER):
-                ax = axes[row_index, col_index]
-                if len(neuron_indices) == 0:
-                    ax.axis("off")
-                    continue
-                x = sound_data[WINDOW_TO_KEY[window_name]][neuron_indices].T
-                if sound_type == "speech":
-                    y = sound_data["stimArray"][:, 0]
-                    title = f"{params.short_names[brain_area]} {window_name.capitalize()} FT"
-                else:
-                    y = sound_data["stimArray"].astype(float)
-                    title = f"{params.short_names[brain_area]} {window_name.capitalize()}"
-                plot_panel(ax, x, y, title, log_target=sound_type in {"AM", "PT"})
+            ax = axes[row_index, col_index]
+            if len(neuron_indices) == 0:
+                ax.axis("off")
+                continue
+            x = sound_data[WINDOW_TO_KEY[window_name]][neuron_indices].T
+            if sound_type == "speech":
+                y = sound_data["stimArray"][:, 0]
+                title = f"{params.short_names[brain_area]} {window_name.capitalize()} FT"
+            else:
+                y = sound_data["stimArray"].astype(float)
+                title = f"{params.short_names[brain_area]} {window_name.capitalize()}"
+            plot_panel(ax, x, y, title, log_target=sound_type in {"AM", "PT"})
         fig.savefig(get_output_dir() / f"{sound_type}_ridge_population.png", dpi=300)
         plt.close(fig)
 

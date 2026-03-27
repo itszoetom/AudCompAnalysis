@@ -3,6 +3,11 @@
 from __future__ import annotations
 
 import matplotlib.pyplot as plt
+try:
+    from tqdm.auto import tqdm
+except ImportError:  # pragma: no cover
+    def tqdm(iterable=None, *args, total=None, **kwargs):
+        return iterable if iterable is not None else range(total or 0)
 
 try:
     from .pca_analysis import (
@@ -39,7 +44,9 @@ except ImportError:
 def main() -> None:
     """Run trial-averaged PCA scatter plots for each sound type."""
     apply_figure_style()
-    for sound_type in list_available_sound_types():
+    sound_types = list_available_sound_types()
+    for sound_type in tqdm(sound_types, desc="PCA averaged figures", unit="sound", dynamic_ncols=True):
+        print(f"Building trial-averaged PCA plots for {sound_type}...")
         brain_regions = get_plot_brain_regions(sound_type)
         target_neurons = get_target_neuron_count(sound_type)
         fig, axes = plt.subplots(
@@ -52,36 +59,44 @@ def main() -> None:
         fig.suptitle(f"{sound_type} averaged PCA (n={target_neurons} neurons per region)", fontsize=16, fontweight="bold")
         last_scatter = None
 
-        for row_index, brain_area in enumerate(brain_regions):
-            for col_index, window_name in enumerate(WINDOW_ORDER):
-                ax = axes[row_index, col_index]
-                dataset = build_sampled_dataset(sound_type, window_name, brain_area, n_neurons=target_neurons)
-                if dataset is None:
-                    ax.axis("off")
-                    continue
-                averaged_dataset = average_trials_by_stimulus(dataset)
-                summary = compute_pca_summary(averaged_dataset["X"])
-                scores = summary["scores"]
-                explained = summary["explained_variance_ratio"]
-                last_scatter = ax.scatter(
-                    scores[:, 0],
-                    scores[:, 1],
-                    c=labels_for_sound(sound_type, averaged_dataset["Y"]),
-                    cmap="viridis",
-                    s=36,
-                    alpha=0.9,
-                    linewidths=0,
-                )
-                ax.set_title(format_panel_title(brain_area, window_name), fontweight="bold")
-                ax.set_xlabel(f"PC1 ({explained[0] * 100:.1f}%)")
-                ax.set_ylabel(f"PC2 ({explained[1] * 100:.1f}%)")
-                ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.25)
+        panel_conditions = [(row_index, brain_area, col_index, window_name) for row_index, brain_area in enumerate(brain_regions) for col_index, window_name in enumerate(WINDOW_ORDER)]
+        for row_index, brain_area, col_index, window_name in tqdm(
+            panel_conditions,
+            desc=f"PCA averaged panels ({sound_type})",
+            unit="panel",
+            dynamic_ncols=True,
+        ):
+            ax = axes[row_index, col_index]
+            dataset = build_sampled_dataset(sound_type, window_name, brain_area, n_neurons=target_neurons)
+            if dataset is None:
+                ax.axis("off")
+                continue
+            averaged_dataset = average_trials_by_stimulus(dataset)
+            summary = compute_pca_summary(averaged_dataset["X"])
+            scores = summary["scores"]
+            explained = summary["explained_variance_ratio"]
+            last_scatter = ax.scatter(
+                scores[:, 0],
+                scores[:, 1],
+                c=labels_for_sound(sound_type, averaged_dataset["Y"]),
+                cmap="viridis",
+                s=36,
+                alpha=0.9,
+                linewidths=0,
+            )
+            ax.set_title(format_panel_title(brain_area, window_name), fontweight="bold")
+            ax.set_xlabel(f"PC1 ({explained[0] * 100:.1f}%)")
+            ax.set_ylabel(f"PC2 ({explained[1] * 100:.1f}%)")
+            ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.25)
 
         if last_scatter is not None:
             colorbar = fig.colorbar(last_scatter, ax=fig.axes, location="bottom", fraction=0.03, pad=0.04)
             stim_array = averaged_dataset["Y"]
-            colorbar.set_ticks(labels_for_sound(sound_type, stim_array))
-            colorbar.set_ticklabels(stimulus_tick_labels(sound_type, stim_array))
+            color_values = labels_for_sound(sound_type, stim_array)
+            tick_labels = stimulus_tick_labels(sound_type, stim_array)
+            unique_values, first_indices = np.unique(color_values, return_index=True)
+            colorbar.set_ticks(unique_values)
+            colorbar.set_ticklabels([tick_labels[index] for index in first_indices])
             colorbar.ax.tick_params(labelsize=8, rotation=35)
             colorbar.set_label("Stimulus", fontsize=12)
 
@@ -91,3 +106,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+import numpy as np

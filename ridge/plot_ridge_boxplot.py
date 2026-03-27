@@ -4,6 +4,11 @@ from __future__ import annotations
 
 import matplotlib.pyplot as plt
 import seaborn as sns
+try:
+    from tqdm.auto import tqdm
+except ImportError:  # pragma: no cover
+    def tqdm(iterable=None, *args, total=None, **kwargs):
+        return iterable if iterable is not None else range(total or 0)
 
 import params
 
@@ -29,11 +34,14 @@ def get_plot_brain_regions(sound_type: str, results_df) -> list[str]:
 def main() -> None:
     """Run population ridge boxplot figures."""
     apply_figure_style()
+    print("Running population ridge regression and boxplot summaries...")
     results_df = run_population_ridge(iterations=30)
     if results_df.empty:
         return
 
-    for sound_type in results_df["Sound Type"].unique():
+    sound_types = results_df["Sound Type"].unique().tolist()
+    for sound_type in tqdm(sound_types, desc="Ridge population boxplots", unit="sound", dynamic_ncols=True):
+        print(f"Plotting ridge population boxplots for {sound_type}...")
         sound_df = results_df[results_df["Sound Type"] == sound_type].copy()
         brain_regions = get_plot_brain_regions(sound_type, sound_df)
         target_order = [target for target in ["FT", "VOT", sound_type] if target in sound_df["Target"].unique()]
@@ -98,6 +106,7 @@ def main() -> None:
                 hue_col="Target" if use_hue else None,
                 hue_order=target_order if use_hue else None,
                 pair_cols=["Iteration"],
+                test_mode="unpaired",
             )
             add_pairwise_annotations(
                 ax,
