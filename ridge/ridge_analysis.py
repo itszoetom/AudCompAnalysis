@@ -15,6 +15,11 @@ from sklearn.linear_model import Ridge
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+try:
+    from tqdm.auto import tqdm
+except ImportError:  # pragma: no cover - fallback when tqdm is unavailable.
+    def tqdm(iterable=None, *args, total=None, **kwargs):
+        return iterable if iterable is not None else range(total or 0)
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -87,12 +92,13 @@ def load_sound_npz(sound_type: str) -> dict[str, np.ndarray]:
     filepath = get_data_dir() / f"fr_arrays_{SOUND_FILE_KEYS[sound_type]}.npz"
     raw = np.load(filepath, allow_pickle=True)
     onset = raw["onsetfr"]
+    stim_numeric_source = raw["stimNumericArray"] if "stimNumericArray" in raw else raw["stimArray"]
     return {
         "onsetfr": onset,
         "sustainedfr": raw["sustainedfr"],
         "offsetfr": raw["offsetfr"],
         "brainRegionArray": raw["brainRegionArray"],
-        "stimArray": _collapse_stimulus_array(raw["stimArray"], onset.shape[1]),
+        "stimArray": _collapse_stimulus_array(stim_numeric_source, onset.shape[1]),
     }
 
 
@@ -266,29 +272,41 @@ def run_population_ridge(
 ) -> pd.DataFrame:
     """Run repeated population ridge fits across all sound, region, and window conditions."""
     records = []
-    for dataset in iter_population_datasets(sound_types=sound_types, windows=windows):
-        for iteration in range(iterations):
-            fit = fit_best_ridge(
-                dataset["X"],
-                dataset["Y"],
-                log_target=dataset["log_target"],
-                random_state=42 + iteration,
+    datasets = iter_population_datasets(sound_types=sound_types, windows=windows)
+    progress = tqdm(total=len(datasets) * iterations, desc="Ridge regression", unit="fit", dynamic_ncols=True)
+    try:
+        for dataset in datasets:
+            progress.set_postfix_str(
+                f"{dataset['sound_type']} | {params.short_names.get(dataset['brain_area'], dataset['brain_area'])} | {dataset['window_name']} | {dataset['target_name']}",
+                refresh=False,
             )
-            records.append(
-                {
-                    "Brain Area": dataset["brain_area"],
-                    "Sound Type": dataset["sound_type"],
-                    "Target": dataset["target_name"],
-                    "Window": dataset["window_name"],
-                    "Iteration": iteration,
-                    "Neurons": fit["n_neurons"],
-                    "Best Alpha": fit["best_alpha"],
-                    "R2 Test": fit["r2_test"],
-                    "RMSE": fit["rmse"],
-                    "Pearson r": fit["pearson_r"],
-                    "Percent Within Tolerance": fit["percent_within_tolerance"],
-                }
-            )
+            for iteration in range(iterations):
+                fit = fit_best_ridge(
+                    dataset["X"],
+                    dataset["Y"],
+                    log_target=dataset["log_target"],
+                    random_state=42 + iteration,
+                )
+                progress.update(1)
+                records.append(
+                    {
+                        "Brain Area": dataset["brain_area"],
+                        "Sound Type": dataset["sound_type"],
+                        "Target": dataset["target_name"],
+                        "Window": dataset["window_name"],
+                        "Iteration": iteration,
+                        "Neurons": fit["n_neurons"],
+                        "Best Alpha": fit["best_alpha"],
+                        "R2 Test": fit["r2_test"],
+                        "RMSE": fit["rmse"],
+                        "Pearson r": fit["pearson_r"],
+                        "Percent Within Tolerance": fit["percent_within_tolerance"],
+                    }
+                )
+    finally:
+        close = getattr(progress, "close", None)
+        if close is not None:
+            close()
     return pd.DataFrame(records)
 
 
@@ -312,27 +330,37 @@ def run_subset_ridge(
     """Run repeated ridge fits after random equal-neuron subsampling."""
     rng = np.random.default_rng(seed)
     records = []
-    for dataset in iter_population_datasets(sound_types=sound_types, windows=windows):
-        if dataset["X"].shape[1] < subset_size:
-            continue
-        for iteration in range(iterations):
-            neuron_idx = rng.choice(dataset["X"].shape[1], subset_size, replace=False)
-            fit = fit_best_ridge(
-                dataset["X"][:, neuron_idx],
-                dataset["Y"],
-                log_target=dataset["log_target"],
-                random_state=seed + iteration,
+    datasets = [dataset for dataset in iter_population_datasets(sound_types=sound_types, windows=windows) if dataset["X"].shape[1] >= subset_size]
+    progress = tqdm(total=len(datasets) * iterations, desc="Subset ridge", unit="fit", dynamic_ncols=True)
+    try:
+        for dataset in datasets:
+            progress.set_postfix_str(
+                f"{dataset['sound_type']} | {params.short_names.get(dataset['brain_area'], dataset['brain_area'])} | {dataset['window_name']} | {dataset['target_name']}",
+                refresh=False,
             )
-            records.append(
-                {
-                    "Brain Area": dataset["brain_area"],
-                    "Sound Type": dataset["sound_type"],
-                    "Target": dataset["target_name"],
-                    "Window": dataset["window_name"],
-                    "Iteration": iteration,
-                    "Neurons": subset_size,
-                    "Best Alpha": fit["best_alpha"],
-                    "R2 Test": fit["r2_test"],
-                }
-            )
+            for iteration in range(iterations):
+                neuron_idx = rng.choice(dataset["X"].shape[1], subset_size, replace=False)
+                fit = fit_best_ridge(
+                    dataset["X"][:, neuron_idx],
+                    dataset["Y"],
+                    log_target=dataset["log_target"],
+                    random_state=seed + iteration,
+                )
+                progress.update(1)
+                records.append(
+                    {
+                        "Brain Area": dataset["brain_area"],
+                        "Sound Type": dataset["sound_type"],
+                        "Target": dataset["target_name"],
+                        "Window": dataset["window_name"],
+                        "Iteration": iteration,
+                        "Neurons": subset_size,
+                        "Best Alpha": fit["best_alpha"],
+                        "R2 Test": fit["r2_test"],
+                    }
+                )
+    finally:
+        close = getattr(progress, "close", None)
+        if close is not None:
+            close()
     return pd.DataFrame(records)

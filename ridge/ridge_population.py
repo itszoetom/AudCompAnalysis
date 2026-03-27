@@ -25,11 +25,12 @@ def load_sound_npz(sound_type: str) -> dict[str, np.ndarray]:
     """Load one saved firing-rate array file."""
     file_key = SOUND_FILE_KEYS[sound_type]
     raw = np.load(os.path.join(params.dbSavePath, f"fr_arrays_{file_key}.npz"), allow_pickle=True)
+    stim_numeric_source = raw["stimNumericArray"] if "stimNumericArray" in raw else raw["stimArray"]
     return {
         "onsetfr": raw["onsetfr"],
         "sustainedfr": raw["sustainedfr"],
         "offsetfr": raw["offsetfr"],
-        "stimArray": raw["stimArray"][0] if sound_type != "speech" else raw["stimArray"],
+        "stimArray": stim_numeric_source[0] if sound_type != "speech" and stim_numeric_source.ndim > 1 else stim_numeric_source,
         "brainRegionArray": raw["brainRegionArray"],
     }
 

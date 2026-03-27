@@ -1,4 +1,4 @@
-"""Create per-mouse ridge R2 distributions for each sound type across regions and spike windows."""
+"""Create per-mouse ridge R2 distributions across brain regions for each spike window."""
 
 from __future__ import annotations
 
@@ -7,6 +7,11 @@ import pandas as pd
 import seaborn as sns
 
 import params
+
+try:
+    from ..plot_stats import add_pairwise_annotations, box_centers, pairwise_group_tests
+except ImportError:
+    from plot_stats import add_pairwise_annotations, box_centers, pairwise_group_tests
 
 try:
     from ..methods.methods_analysis import WINDOW_ORDER, available_mice, build_dataset, fit_best_ridge, get_brain_regions
@@ -55,30 +60,89 @@ def main() -> None:
         results_df = build_mouse_frame(sound_type)
         if results_df.empty:
             continue
+
         brain_regions = [region for region in params.targetSiteNames if region in results_df["Brain Area"].unique()]
+        target_order = [target for target in ["FT", "VOT", sound_type] if target in results_df["Target"].unique()]
+        use_hue = len(target_order) > 1
         fig, axes = plt.subplots(
-            len(brain_regions),
+            1,
             len(WINDOW_ORDER),
-            figsize=(4.0 * len(WINDOW_ORDER), 3.4 * len(brain_regions)),
+            figsize=(4.4 * len(WINDOW_ORDER), 4.8),
             squeeze=False,
+            sharey=True,
             constrained_layout=True,
         )
         fig.suptitle(f"{sound_type} per-mouse ridge $R^2$", fontsize=16, fontweight="bold")
-        for row_index, brain_area in enumerate(brain_regions):
-            for col_index, window_name in enumerate(WINDOW_ORDER):
-                ax = axes[row_index, col_index]
-                panel_df = results_df[(results_df["Brain Area"] == brain_area) & (results_df["Window"] == window_name)]
-                if panel_df.empty:
-                    ax.axis("off")
-                    continue
-                sns.boxplot(data=panel_df, x="Target", y="R2 Test", fliersize=2, linewidth=1, ax=ax)
-                sns.stripplot(data=panel_df, x="Target", y="R2 Test", hue="Mouse", dodge=False, size=3, alpha=0.55, ax=ax)
-                if ax.legend_ is not None:
-                    ax.legend_.remove()
-                ax.set_title(f"{params.short_names[brain_area]}\n{window_name.capitalize()}", fontweight="bold")
-                ax.set_xlabel("")
-                ax.set_ylabel("$R^2$")
-                ax.grid(axis="y", linestyle="--", linewidth=0.5, alpha=0.25)
+        y_min = float(results_df["R2 Test"].min())
+        y_max = float(results_df["R2 Test"].max())
+        max_annotations = len(target_order) * (len(brain_regions) * (len(brain_regions) - 1) // 2)
+        y_step = 0.035 * ((y_max - y_min) if y_max > y_min else 1.0)
+
+        for col_index, window_name in enumerate(WINDOW_ORDER):
+            ax = axes[0, col_index]
+            panel_df = results_df[results_df["Window"] == window_name].copy()
+            if panel_df.empty:
+                ax.axis("off")
+                continue
+
+            box_kwargs = dict(
+                data=panel_df,
+                x="Brain Area",
+                y="R2 Test",
+                order=brain_regions,
+                width=0.5,
+                fliersize=2,
+                linewidth=1,
+                ax=ax,
+            )
+            strip_kwargs = dict(
+                data=panel_df,
+                x="Brain Area",
+                y="R2 Test",
+                order=brain_regions,
+                dodge=use_hue,
+                size=3,
+                alpha=0.45,
+                ax=ax,
+            )
+            if use_hue:
+                box_kwargs["hue"] = "Target"
+                box_kwargs["hue_order"] = target_order
+                strip_kwargs["hue"] = "Target"
+                strip_kwargs["hue_order"] = target_order
+            sns.boxplot(**box_kwargs)
+            sns.stripplot(color="black", **strip_kwargs)
+            if ax.legend_ is not None:
+                ax.legend_.remove()
+
+            stats_df = pairwise_group_tests(
+                panel_df,
+                group_col="Brain Area",
+                value_col="R2 Test",
+                group_order=brain_regions,
+                hue_col="Target" if use_hue else None,
+                hue_order=target_order if use_hue else None,
+                pair_cols=["Mouse"],
+            )
+            add_pairwise_annotations(
+                ax,
+                stats_df,
+                centers=box_centers(brain_regions, hue_levels=target_order if use_hue else None),
+                data_max=y_max,
+                data_min=y_min,
+            )
+
+            ax.set_title(window_name.capitalize(), fontweight="bold")
+            ax.set_xlabel("")
+            ax.set_ylabel("$R^2$" if col_index == 0 else "")
+            ax.set_xticklabels([params.short_names.get(region, region) for region in brain_regions], rotation=20)
+            ax.grid(axis="y", linestyle="--", linewidth=0.5, alpha=0.25)
+            ax.set_ylim(y_min - y_step, y_max + y_step * (max_annotations + 2))
+
+        if use_hue:
+            handles, labels = axes[0, 0].get_legend_handles_labels()
+            if handles:
+                fig.legend(handles[: len(target_order)], labels[: len(target_order)], title="Target", loc="upper right", frameon=False)
         fig.savefig(get_output_dir() / f"{sound_type}_ridge_per_mouse.png", dpi=300)
         plt.close(fig)
 

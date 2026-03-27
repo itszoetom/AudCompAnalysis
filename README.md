@@ -1,59 +1,100 @@
 # Auditory Cortex Population Analysis
 
-Population-level neural data analysis of auditory cortex subregion representations in mice.
+Population-level auditory-cortex analyses for the Murray Lab thesis project. The repo combines:
+- a natural-sounds dataset with pure tones (`PT`), AM white noise (`AM`), and natural sounds (`naturalSound`)
+- a speech dataset with FT/VOT continua (`speech`)
 
-## Overview
-This repository contains the analysis code for an honors thesis on how auditory cortex subregions differ in their neural population representations of sound. It combines two datasets: a natural-sounds dataset with pure tones, AM white noise, and natural sounds, and a speech dataset with FT/VOT speech continua. The current analysis folders focus on population PCA/UMAP encoding, ridge-regression decoding, and methods figures for example sessions and neuron-count summaries. Preprocessed firing-rate arrays are saved as `.npz` files and then reused by the downstream plotting scripts.
+Raw HDF databases are converted into shared `.npz` firing-rate arrays, and those arrays are reused across PCA/UMAP, ridge-regression, methods figures, and discriminability analyses.
 
 ## Datasets
+
 Natural Sounds Dataset:
-- Subjects: `feat014`-`feat019`
-- Stimuli: pure tones (`PT`), AM white noise (`AM`), natural sounds (`naturalSound`)
-- Subregions: A1, AuD, AuV, AuP
-- Target subsampling: `278` neurons per subregion
+- Subjects: `feat014` to `feat019`
+- Brain regions: `Primary`, `Dorsal`, `Ventral`, `Posterior`
+- Stimuli: `PT`, `AM`, `naturalSound`
+- Population figure subsampling: `278` neurons per region
 
 Speech Dataset:
-- Subjects: `feat004`-`feat010`
-- Stimuli: speech syllables along FT/VOT continua
-- Subregions: A1, AuV, AuP, AuP retained in saved arrays, AuD excluded from paper-style figures because of low neuron count
-- Target subsampling: `99` neurons per subregion
+- Subjects: `feat004` to `feat010`
+- Brain regions in saved arrays: `Primary`, `Dorsal`, `Ventral`, `Posterior`
+- Paper-style population figures: exclude `Dorsal` because of low neuron count
+- Stimuli: 12 FT/VOT speech identities, with four syllable endpoints (`ba`, `da`, `pa`, `ta`)
+- Population figure subsampling: `99` neurons per region
 
-## Repository Structure
-```text
-build_firing_rate_arrays.py  - loads .h5 files, preprocesses spike data, saves .npz arrays
-params.py                    - shared parameters: subjects, spike windows, colors, paths
-database_generation.py       - generates cell database .h5 files
-pca/
-    pca_analysis.py                - PCA/UMAP helper functions: loading, subsampling, PR
-    plot_pca_all_mice.py           - population PCA scatter and scree plots
-    plot_pca_all_mice_averages.py  - trial-averaged PCA scatter plots
-    plot_pca_particRatio_dist.py   - participation ratio boxplot distributions
-    plot_pca_speech.py             - speech FT/VOT separated PCA plots
-    pca_umap.py                    - UMAP population scatter plots
-ridge/
-    ridge_analysis.py              - ridge regression helpers: loading, tuning, evaluation
-    plot_ridge_boxplot.py          - population R2 boxplots across regions and windows
-    ridge_population.py            - predicted-versus-actual population ridge plots
-    plot_ridge_per_mouse.py        - per-mouse R2 boxplots
-    plot_ridge_per_session.py      - per-session R2 boxplots
-methods/
-    methods_analysis.py            - shared utility functions for methods figures
-    plot_data_info.py              - neuron-count histograms and session summaries
-    plot_single_mouse_psth.py      - example PSTH figures with spike-window markers
-    plot_single_mouse_raster.py    - example raster plots with spike-window markers
-    plot_single_mouse_spikerate.py - example spike-rate plots across stimuli
-discriminability/
-    README.md                      - placeholder for future discriminability pass
-data/                              - .npz firing-rate arrays (not tracked in git)
-archive/                           - legacy scripts (not maintained)
-```
+## Main Files
 
-## Setup
-Use Python 3 with `numpy`, `scipy`, `scikit-learn`, `matplotlib`, `seaborn`, `umap-learn`, and `jaratoolbox`. Dataset and figure paths are configured in `params.py`. The expected run order is:
+Root:
+- `build_firing_rate_arrays.py`
+  builds the saved `.npz` response arrays for all sound types
+- `params.py`
+  shared paths, subject lists, stimulus metadata, spike windows, and plotting colors
+- `plot_stats.py`
+  shared Bonferroni-corrected statistical annotation helpers for boxplot-style figures
 
-1. Run `build_firing_rate_arrays.py` to build the `.npz` arrays.
-2. Run any PCA, ridge, or methods plotting script.
-3. Save outputs to the figure path defined in `params.py`.
+`pca/`:
+- `pca_analysis.py`
+  shared PCA loading, averaging, labeling, and subsampling helpers
+- `plot_pca_all_mice.py`
+  population PCA scatter and scree plots
+- `plot_pca_all_mice_averages.py`
+  trial-averaged PCA plots
+- `plot_pca_particRatio_dist.py`
+  participation-ratio distributions by brain region and spike window
+- `pca_umap.py`
+  UMAP population plots
+
+`ridge/`:
+- `ridge_analysis.py`
+  shared ridge-regression helpers and repeated evaluation functions
+- `plot_ridge_boxplot.py`
+  population ridge `R^2` distributions by brain region and spike window
+- `plot_ridge_per_mouse.py`
+  per-mouse ridge `R^2` distributions in the same region-comparison format
+- `plot_ridge_per_session.py`
+  per-session ridge `R^2` distributions in the same region-comparison format
+- `ridge_population.py`
+  predicted-vs-actual ridge plots
+
+`methods/`:
+- `methods_analysis.py`
+  shared array-loading and figure helpers for methods figures
+- `plot_data_info.py`
+  neuron-count summaries by session, mouse, and brain region
+- `plot_single_mouse_psth.py`
+  example PSTH figures
+- `plot_single_mouse_raster.py`
+  example raster figures
+- `plot_single_mouse_spikerate.py`
+  mean response profiles by stimulus
+
+`discriminability/`:
+- `discriminability_analysis.py`
+  shared session-based discriminability pipeline
+- `pearson/analysis.py`, `pearson/plot.py`
+- `linearSVM/analysis.py`, `linearSVM/plot.py`
+- `lda/analysis.py`, `lda/plot.py`
+- `run_all_analyses.py`
+  runs all discriminability analyses
+- `run_all_plots.py`
+  runs all discriminability plotting scripts
+- `run_all.py`
+  runs the full discriminability pipeline
+
+Legacy exploratory discriminability notebooks and scripts are still present in the method subfolders, but the current pipeline is the `analysis.py` and `plot.py` entry points plus the top-level runner scripts.
+
+## Typical Run Order
+
+1. Run `build_firing_rate_arrays.py`.
+2. Run whichever analysis or figure scripts you need from `pca/`, `ridge/`, `methods/`, or `discriminability/`.
+3. For the discriminability pipeline, use `discriminability/run_all.py` or the separate analysis/plot runners.
 
 ## Figure Conventions
-Paper-style population figures use Times New Roman, viridis for continuous stimulus coloring, and `params.color_palette` for region-level colors. Population PCA, UMAP, and ridge figures are organized as brain-region rows by spike-window columns, with one figure per sound type. Population neuron subsampling is fixed at `278` neurons for the natural-sounds dataset and `99` neurons for speech. Statistical annotations use Mann-Whitney U tests with Bonferroni correction where applicable.
+
+- Paper-style figures use serif fonts and `params.color_palette` for region colors.
+- Summary distributions are organized as brain-region comparisons on a shared axis, with one panel per spike window and one figure per sound type.
+- Statistical annotations use Bonferroni-corrected pairwise tests.
+- Natural-sound discriminability also includes within-category vs between-category summary boxplots.
+
+## Environment Notes
+
+The code expects local access to `jaratoolbox` plus the HDF databases referenced in `params.py`. Saved `.npz` data outputs are written to the `dbSavePath` configured there, not into this Git repo.

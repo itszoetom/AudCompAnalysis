@@ -29,8 +29,10 @@ except ImportError:
 import params
 
 
-def stimulus_labels(sound_type: str, unique_y: np.ndarray) -> list[str]:
+def stimulus_labels(sound_type: str, unique_y: np.ndarray, unique_labels: np.ndarray | None = None) -> list[str]:
     """Return written-out stimulus labels for one sound type."""
+    if unique_labels is not None:
+        return [str(label) for label in unique_labels]
     if sound_type == "speech":
         labels = []
         for ft_value, vot_value in unique_y:
@@ -46,6 +48,7 @@ def stimulus_labels(sound_type: str, unique_y: np.ndarray) -> list[str]:
 def average_by_stimulus(dataset: dict[str, np.ndarray]) -> tuple[np.ndarray, np.ndarray, np.ndarray, list[str]]:
     """Average one dataset across repeated stimulus identities."""
     y = np.asarray(dataset["Y"])
+    y_labels = np.asarray(dataset.get("Y_labels")) if dataset.get("Y_labels") is not None else None
     x = np.asarray(dataset["X"])
 
     if dataset["sound_type"] == "speech":
@@ -57,7 +60,10 @@ def average_by_stimulus(dataset: dict[str, np.ndarray]) -> tuple[np.ndarray, np.
 
     mean_response = np.array([x[inverse == idx].mean() for idx in range(len(unique_y))])
     sem_response = np.array([x[inverse == idx].std(ddof=0) / np.sqrt(np.sum(inverse == idx)) for idx in range(len(unique_y))])
-    return x_axis, mean_response, sem_response, stimulus_labels(dataset["sound_type"], unique_y)
+    unique_label_values = None
+    if y_labels is not None:
+        unique_label_values = np.array([y_labels[np.flatnonzero(inverse == idx)[0]] for idx in range(len(unique_y))], dtype=object)
+    return x_axis, mean_response, sem_response, stimulus_labels(dataset["sound_type"], unique_y, unique_label_values)
 
 
 def main() -> None:

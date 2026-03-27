@@ -1,5 +1,7 @@
-.idea
-
-/data/
-
-/archive/
+.idea/
+data/
+archive/
+jaratoolbox/
+settings.py
+__pycache__/
+.DS_Store

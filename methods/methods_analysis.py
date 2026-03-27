@@ -20,7 +20,6 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import funcs  # noqa: E402
 import params  # noqa: E402
 
 WINDOW_ORDER = ("onset", "sustained", "offset")
@@ -89,12 +88,15 @@ def load_sound_npz(sound_type: str) -> dict[str, np.ndarray]:
     filepath = get_data_dir() / f"fr_arrays_{SOUND_FILE_KEYS[sound_type]}.npz"
     raw = np.load(filepath, allow_pickle=True)
     onset = raw["onsetfr"]
+    stim_labels = _collapse_stimulus_array(raw["stimArray"], onset.shape[1])
+    stim_numeric_source = raw["stimNumericArray"] if "stimNumericArray" in raw else raw["stimArray"]
     return {
         "onsetfr": onset,
         "sustainedfr": raw["sustainedfr"],
         "offsetfr": raw["offsetfr"],
         "brainRegionArray": raw["brainRegionArray"],
-        "stimArray": _collapse_stimulus_array(raw["stimArray"], onset.shape[1]),
+        "stimArray": _collapse_stimulus_array(stim_numeric_source, onset.shape[1]),
+        "stimLabelArray": stim_labels,
         "mouseIDArray": raw["mouseIDArray"],
         "sessionIDArray": raw["sessionIDArray"],
     }
@@ -144,9 +146,14 @@ def build_dataset(
         "brain_area": brain_area,
         "X": x,
         "Y": sound_data["stimArray"],
+        "Y_labels": sound_data["stimLabelArray"],
         "mouse_ids": sound_data["mouseIDArray"][mask],
         "session_ids": sound_data["sessionIDArray"][mask],
     }
+
+
+def calculate_participation_ratio(explained_variance_ratio):
+    return ((np.sum(explained_variance_ratio)) ** 2) / np.sum(explained_variance_ratio ** 2)
 
 
 def compute_pca_summary(x: np.ndarray) -> dict[str, np.ndarray]:
@@ -159,7 +166,7 @@ def compute_pca_summary(x: np.ndarray) -> dict[str, np.ndarray]:
     return {
         "scores": scores,
         "explained_variance_ratio": explained,
-        "participation_ratio": funcs.calculate_participation_ratio(explained),
+        "participation_ratio": calculate_participation_ratio(explained),
         "n_neurons": x.shape[1],
     }
 

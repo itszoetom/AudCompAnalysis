@@ -118,21 +118,21 @@ def build_sampled_dataset(sound_type: str, window_name: str, brain_area: str, n_
         "brain_area": brain_area,
         "X": x,
         "Y": sound_data["stimArray"],
+        "Y_labels": sound_data["stimLabelArray"],
         "mouse_ids": sound_data["mouseIDArray"][cell_indices],
         "session_ids": sound_data["sessionIDArray"][cell_indices],
     }
 
 
 def format_speech_label(label: tuple[int, int] | np.ndarray) -> str:
-    """Format one speech tuple as VOT/FT text with a syllable tag when available."""
+    """Format one speech tuple as `"(FT, VOT)"`."""
     ft_value, vot_value = tuple(np.asarray(label).tolist())
-    suffix = f" ({SPEECH_SYLLABLE_MAP[(ft_value, vot_value)]})" if (ft_value, vot_value) in SPEECH_SYLLABLE_MAP else ""
-    return f"VOT={vot_value} FT={ft_value}{suffix}"
+    return str((ft_value, vot_value))
 
 
 def natural_sound_labels() -> list[str]:
     """Return written natural-sound labels in the stored presentation order."""
-    return [f"{category}_{index}" for category in params.SOUND_CATEGORIES for index in range(1, 5)]
+    return params.NAT_SOUND_LABELS
 
 
 def stimulus_tick_labels(sound_type: str, stim_array: np.ndarray) -> list[str]:
@@ -194,13 +194,16 @@ def load_sound_npz(sound_type: str) -> dict[str, np.ndarray]:
 
     raw = np.load(filepath, allow_pickle=True)
     onset = raw["onsetfr"]
-    stim = _collapse_stimulus_array(raw["stimArray"], onset.shape[1])
+    stim_labels = _collapse_stimulus_array(raw["stimArray"], onset.shape[1])
+    stim_numeric_source = raw["stimNumericArray"] if "stimNumericArray" in raw else raw["stimArray"]
+    stim = _collapse_stimulus_array(stim_numeric_source, onset.shape[1])
     return {
         "onsetfr": onset,
         "sustainedfr": raw["sustainedfr"],
         "offsetfr": raw["offsetfr"],
         "brainRegionArray": raw["brainRegionArray"],
         "stimArray": stim,
+        "stimLabelArray": stim_labels,
         "mouseIDArray": raw["mouseIDArray"],
         "sessionIDArray": raw["sessionIDArray"],
     }
@@ -261,6 +264,7 @@ def build_population_dataset(
         "brain_area": brain_area,
         "X": x,
         "Y": sound_data["stimArray"],
+        "Y_labels": sound_data["stimLabelArray"],
         "mouse_ids": sound_data["mouseIDArray"][cell_indices],
         "session_ids": sound_data["sessionIDArray"][cell_indices],
     }

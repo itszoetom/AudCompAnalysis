@@ -1,12 +1,22 @@
-"""Create participation-ratio distributions for each sound type across brain regions and spike windows."""
+"""Create participation-ratio distributions across brain regions for each spike window."""
 
 from __future__ import annotations
 
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
-from scipy.stats import mannwhitneyu
-from statsmodels.stats.multitest import multipletests
+try:
+    from tqdm.auto import tqdm
+except ImportError:  # pragma: no cover - fallback when tqdm is unavailable.
+    def tqdm(iterable=None, *args, total=None, **kwargs):
+        return iterable if iterable is not None else range(total or 0)
+
+import params
+
+try:
+    from ..plot_stats import add_pairwise_annotations, box_centers, pairwise_group_tests
+except ImportError:
+    from plot_stats import add_pairwise_annotations, box_centers, pairwise_group_tests
 
 try:
     from .pca_analysis import (
@@ -35,53 +45,40 @@ except ImportError:
 def build_participation_frame(sound_type: str, iterations: int = 30) -> pd.DataFrame:
     """Return repeated participation-ratio measurements for one sound type."""
     records = []
-    for iteration in range(iterations):
-        for brain_area in get_plot_brain_regions(sound_type):
-            for window_name in WINDOW_ORDER:
-                dataset = build_sampled_dataset(
-                    sound_type,
-                    window_name,
-                    brain_area,
-                    n_neurons=get_target_neuron_count(sound_type),
-                )
-                if dataset is None:
-                    continue
-                summary = compute_pca_summary(dataset["X"])
-                records.append(
-                    {
-                        "Brain Area": brain_area,
-                        "Window": window_name,
-                        "Participation Ratio": summary["participation_ratio"],
-                        "Iteration": iteration,
-                    }
-                )
+    brain_regions = get_plot_brain_regions(sound_type)
+    total_steps = iterations * len(brain_regions) * len(WINDOW_ORDER)
+    progress = tqdm(total=total_steps, desc=f"PCA participation ratio ({sound_type})", unit="sample", dynamic_ncols=True)
+    try:
+        for iteration in range(iterations):
+            for brain_area in brain_regions:
+                for window_name in WINDOW_ORDER:
+                    progress.set_postfix_str(
+                        f"{params.short_names.get(brain_area, brain_area)} | {window_name}",
+                        refresh=False,
+                    )
+                    dataset = build_sampled_dataset(
+                        sound_type,
+                        window_name,
+                        brain_area,
+                        n_neurons=get_target_neuron_count(sound_type),
+                    )
+                    progress.update(1)
+                    if dataset is None:
+                        continue
+                    summary = compute_pca_summary(dataset["X"])
+                    records.append(
+                        {
+                            "Brain Area": brain_area,
+                            "Window": window_name,
+                            "Participation Ratio": summary["participation_ratio"],
+                            "Iteration": iteration,
+                        }
+                    )
+    finally:
+        close = getattr(progress, "close", None)
+        if close is not None:
+            close()
     return pd.DataFrame(records)
-
-
-def add_significance_labels(ax, panel_df: pd.DataFrame) -> None:
-    """Add simple Bonferroni-corrected significance markers above region comparisons."""
-    brain_regions = list(panel_df["Brain Area"].unique())
-    tests = []
-    for left_index, left_region in enumerate(brain_regions):
-        for right_index in range(left_index + 1, len(brain_regions)):
-            right_region = brain_regions[right_index]
-            left_values = panel_df.loc[panel_df["Brain Area"] == left_region, "Participation Ratio"]
-            right_values = panel_df.loc[panel_df["Brain Area"] == right_region, "Participation Ratio"]
-            if len(left_values) < 2 or len(right_values) < 2:
-                continue
-            _, p_value = mannwhitneyu(left_values, right_values, alternative="two-sided")
-            tests.append((left_index, right_index, p_value))
-    if not tests:
-        return
-    corrected = multipletests([p_value for _, _, p_value in tests], method="bonferroni")[1]
-    y_max = panel_df["Participation Ratio"].max()
-    for offset, ((left_index, right_index, _), p_value) in enumerate(zip(tests, corrected)):
-        if p_value >= 0.05:
-            continue
-        star_text = "***" if p_value < 0.001 else "**" if p_value < 0.01 else "*"
-        height = y_max + 0.05 * (offset + 1)
-        ax.plot([left_index, left_index, right_index, right_index], [height, height + 0.02, height + 0.02, height], c="black", lw=1)
-        ax.text((left_index + right_index) / 2, height + 0.02, star_text, ha="center", va="bottom", fontsize=10)
 
 
 def main() -> None:
@@ -91,18 +88,68 @@ def main() -> None:
         summary_df = build_participation_frame(sound_type)
         if summary_df.empty:
             continue
-        fig, axes = plt.subplots(1, len(WINDOW_ORDER), figsize=(4.0 * len(WINDOW_ORDER), 4.0), squeeze=False, constrained_layout=True)
+
+        brain_regions = get_plot_brain_regions(sound_type)
+        fig, axes = plt.subplots(
+            1,
+            len(WINDOW_ORDER),
+            figsize=(4.4 * len(WINDOW_ORDER), 4.8),
+            squeeze=False,
+            sharey=True,
+            constrained_layout=True,
+        )
         fig.suptitle(f"{sound_type} participation ratio", fontsize=16, fontweight="bold")
+        y_min = float(summary_df["Participation Ratio"].min())
+        y_max = float(summary_df["Participation Ratio"].max())
+        max_annotations = len(brain_regions) * (len(brain_regions) - 1) // 2
+        y_step = 0.035 * ((y_max - y_min) if y_max > y_min else 1.0)
+
         for col_index, window_name in enumerate(WINDOW_ORDER):
             ax = axes[0, col_index]
-            panel_df = summary_df[summary_df["Window"] == window_name]
-            sns.boxplot(data=panel_df, x="Brain Area", y="Participation Ratio", fliersize=2, linewidth=1, ax=ax)
-            sns.stripplot(data=panel_df, x="Brain Area", y="Participation Ratio", color="black", size=3, alpha=0.35, ax=ax)
+            panel_df = summary_df[summary_df["Window"] == window_name].copy()
+            sns.boxplot(
+                data=panel_df,
+                x="Brain Area",
+                y="Participation Ratio",
+                order=brain_regions,
+                width=0.5,
+                fliersize=2,
+                linewidth=1,
+                ax=ax,
+            )
+            sns.stripplot(
+                data=panel_df,
+                x="Brain Area",
+                y="Participation Ratio",
+                order=brain_regions,
+                color="black",
+                size=3,
+                alpha=0.35,
+                ax=ax,
+            )
+
+            stats_df = pairwise_group_tests(
+                panel_df,
+                group_col="Brain Area",
+                value_col="Participation Ratio",
+                group_order=brain_regions,
+                pair_cols=["Iteration"],
+            )
+            add_pairwise_annotations(
+                ax,
+                stats_df,
+                centers=box_centers(brain_regions),
+                data_max=y_max,
+                data_min=y_min,
+            )
+
             ax.set_title(window_name.capitalize(), fontweight="bold")
             ax.set_xlabel("")
-            ax.tick_params(axis="x", rotation=20)
+            ax.set_ylabel("Participation Ratio" if col_index == 0 else "")
+            ax.set_xticklabels([params.short_names.get(region, region) for region in brain_regions], rotation=20)
             ax.grid(axis="y", linestyle="--", linewidth=0.5, alpha=0.25)
-            add_significance_labels(ax, panel_df)
+            ax.set_ylim(y_min - y_step, y_max + y_step * (max_annotations + 2))
+
         fig.savefig(get_figure_dir() / f"{sound_type}_participation_ratio.png", dpi=300)
         plt.close(fig)
 
