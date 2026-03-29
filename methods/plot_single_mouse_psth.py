@@ -12,9 +12,10 @@ if str(ROOT) not in sys.path:
 
 import matplotlib.pyplot as plt
 import numpy as np
-from jaratoolbox import behavioranalysis, celldatabase, ephyscore, spikesanalysis, settings
+from jaratoolbox import behavioranalysis, celldatabase, ephyscore, spikesanalysis
 
 import params
+import funcs
 
 try:
     from tqdm.auto import tqdm
@@ -33,7 +34,7 @@ EXAMPLE_SESSIONS = (
         "subject": "feat005",
         "session_date": "2022-02-07",
         "pdepth": 3020,
-        "database_path": os.path.join(settings.DATABASE_PATH, params.SPEECH_STUDY_NAME, "celldb_feat005.h5"),
+        "database_path": os.path.join(params.DATABASE_PATH, params.SPEECH_STUDY_NAME, "celldb_feat005.h5"),
         "plot_types": ("FT", "VOT"),
     },
     {
@@ -56,9 +57,7 @@ PLOT_WINDOWS = {
 
 def get_output_dir() -> Path:
     """Return the PSTH figure output directory."""
-    output_dir = Path(params.figSavePath) / "methods" / "psth"
-    output_dir.mkdir(parents=True, exist_ok=True)
-    return output_dir
+    return funcs.get_nested_figure_dir("methods", "psth")
 
 
 def load_session_dataframe(config: dict[str, object]):
@@ -78,7 +77,10 @@ def get_trial_groups(plot_type: str, behavior_data):
     """Return grouped trials and readable labels for one plot type."""
     if plot_type in {"FT", "VOT"}:
         speech_labels = np.column_stack((behavior_data["targetFTpercent"], behavior_data["targetVOTpercent"])).astype(int)
-        keep_indices, sorted_labels = select_speech_trials(speech_labels, max_repeats=params.SPEECH_REPEATS_PER_TOKEN)
+        keep_indices, sorted_labels = funcs.select_speech_trials(
+            speech_labels,
+            max_repeats=params.SPEECH_REPEATS_PER_TOKEN,
+        )
         feature_index = 0 if plot_type == "FT" else 1
         feature_name = "FT" if plot_type == "FT" else "VOT"
         possible_params = np.unique(sorted_labels[:, feature_index])
@@ -100,46 +102,6 @@ def get_trial_groups(plot_type: str, behavior_data):
     labels = [f"{value / 1000:.0f} {unit}" if plot_type == "pureTones" else f"{int(value)} {unit}" for value in possible_params]
     return selectors, labels
 
-
-def select_speech_trials(labels: np.ndarray, max_repeats: int) -> tuple[np.ndarray, np.ndarray]:
-    """Keep the first `max_repeats` repeats for each speech token and sort by `(FT, VOT)`."""
-    counts: dict[tuple[int, int], int] = {}
-    keep_indices = []
-    for trial_index, label in enumerate(map(tuple, labels.tolist())):
-        repeat_count = counts.get(label, 0)
-        if repeat_count < max_repeats:
-            keep_indices.append(trial_index)
-            counts[label] = repeat_count + 1
-
-    keep_indices = np.asarray(keep_indices, dtype=int)
-    filtered_labels = labels[keep_indices]
-    sort_order = np.lexsort((filtered_labels[:, 1], filtered_labels[:, 0]))
-    return keep_indices[sort_order], filtered_labels[sort_order]
-
-
-def trial_indices_from_selector(selector: np.ndarray, n_trials: int) -> np.ndarray:
-    """Convert one trial selector into integer trial indices."""
-    selector_array = np.asarray(selector)
-    if selector_array.dtype == bool:
-        return np.flatnonzero(selector_array)
-    selector_array = selector_array.astype(int).ravel()
-    if selector_array.size == n_trials and np.all(np.isin(selector_array, [0, 1])):
-        return np.flatnonzero(selector_array)
-    return selector_array
-
-
-def normalize_index_limits(index_limits: np.ndarray) -> np.ndarray:
-    """Ensure event-locked index limits are shaped as trials x 2."""
-    limits = np.asarray(index_limits)
-    if limits.ndim != 2:
-        raise ValueError(f"Unexpected index_limits shape {limits.shape}.")
-    if limits.shape[1] == 2:
-        return limits
-    if limits.shape[0] == 2:
-        return limits.T
-    raise ValueError(f"Unexpected index_limits shape {limits.shape}.")
-
-
 def load_plot_data(one_cell, plot_type: str):
     """Load spike-aligned data for one cell and plot type."""
     session_type = "FTVOTBorders" if plot_type in {"FT", "VOT"} else plot_type
@@ -152,7 +114,7 @@ def load_plot_data(one_cell, plot_type: str):
         time_range,
         spikeindex=False,
     )
-    index_limits = normalize_index_limits(index_limits)
+    index_limits = funcs.normalize_index_limits(index_limits)
     trials_each_type, labels = get_trial_groups(plot_type, behavior_data)
     return spike_times_from_onset, index_limits, bins_start, time_range, trials_each_type, labels
 
@@ -162,31 +124,46 @@ def condition_colors(n_conditions: int) -> np.ndarray:
     return plt.cm.viridis(np.linspace(0.08, 0.95, max(n_conditions, 2)))[:n_conditions]
 
 
+def raster_ylabel(plot_type: str) -> str:
+    """Return the label used on the raster y-axis."""
+    return {
+        "pureTones": "Frequency (kHz)",
+        "AM": "AM Rate (Hz)",
+        "FT": "FT (%)",
+        "VOT": "VOT (%)",
+        "naturalSound": "Sound",
+    }.get(plot_type, "Condition")
+
+
 def add_window_markers(ax, plot_type: str) -> None:
     """Draw spike-window boundaries on one axis."""
-    for marker in PLOT_WINDOWS[plot_type]["markers"]:
-        ax.axvline(marker, color="black", linestyle="--", linewidth=1)
+    for marker, color in zip(PLOT_WINDOWS[plot_type]["markers"], ("y", "c", "r", "r")):
+        ax.axvline(marker, color=color, linestyle="--", linewidth=1.5)
 
 
 def plot_colored_raster(ax, spike_times_from_onset, index_limits, trials_each_type, labels, time_range) -> None:
-    """Plot one raster with rows grouped and colored by stimulus condition."""
+    """Plot one dot raster with grouped colored sidebars for stimulus conditions."""
     colors = condition_colors(len(labels))
     n_trials = index_limits.shape[0]
+    sidebar_frac = 0.055
     y_position = 1
     y_ticks = []
     y_labels = []
     for condition_index, (selector, label) in enumerate(zip(trials_each_type, labels)):
-        trial_numbers = trial_indices_from_selector(selector, n_trials)
+        trial_numbers = funcs.trial_indices_from_selector(selector, n_trials)
         if len(trial_numbers) == 0:
             continue
         start_y = y_position
         for trial_number in trial_numbers:
             spikes = spike_times_from_onset[index_limits[trial_number, 0] : index_limits[trial_number, 1]]
             if len(spikes):
-                ax.vlines(spikes, y_position - 0.4, y_position + 0.4, color=colors[condition_index], linewidth=0.7)
+                ax.scatter(spikes, np.full(spikes.shape, y_position), s=14, color="black", linewidths=0)
             y_position += 1
-        y_ticks.append((start_y + y_position - 1) / 2)
+        stop_y = y_position - 1
+        y_ticks.append((start_y + stop_y) / 2)
         y_labels.append(label)
+        ax.axhspan(start_y - 0.5, stop_y + 0.5, xmin=0.0, xmax=sidebar_frac, color=colors[condition_index], ec=None)
+        ax.axhspan(start_y - 0.5, stop_y + 0.5, xmin=1.0 - sidebar_frac, xmax=1.0, color=colors[condition_index], ec=None)
     ax.set_xlim(time_range[0], time_range[1])
     ax.set_ylim(0.5, max(y_position - 0.5, 1.5))
     ax.set_yticks(y_ticks)
@@ -204,20 +181,14 @@ def plot_colored_psth(ax, spike_times_from_onset: np.ndarray, index_limits: np.n
     n_trials = index_limits.shape[0]
     bin_edges = np.append(bins_start, bins_start[-1] + BIN_WIDTH)
     for condition_index, (selector, label) in enumerate(zip(trials_each_type, labels)):
-        trial_numbers = trial_indices_from_selector(selector, n_trials)
+        trial_numbers = funcs.trial_indices_from_selector(selector, n_trials)
         if len(trial_numbers) == 0:
             continue
         trial_histograms = [np.histogram(trial_spike_times(spike_times_from_onset, index_limits, trial_number), bins=bin_edges)[0] for trial_number in trial_numbers]
         mean_rate = np.mean(np.vstack(trial_histograms), axis=0) / BIN_WIDTH
         smooth_kernel = np.ones(5) / 5
         smooth_rate = np.convolve(mean_rate, smooth_kernel, mode="same")
-        ax.plot(bins_start, smooth_rate, color=colors[condition_index], linewidth=1.5, alpha=0.95, label=label)
-
-
-def maybe_add_legend(ax, labels: list[str]) -> None:
-    """Add a compact legend only when the number of conditions is manageable."""
-    if len(labels) <= 8:
-        ax.legend(frameon=False, fontsize=7, ncol=2, loc="upper right")
+        ax.plot(bins_start, smooth_rate, color=colors[condition_index], linewidth=3, alpha=0.98)
 
 
 def condition_response_strength(spike_times_from_onset: np.ndarray, index_limits: np.ndarray, bins_start: np.ndarray, trials_each_type) -> float:
@@ -226,7 +197,7 @@ def condition_response_strength(spike_times_from_onset: np.ndarray, index_limits
     n_trials = index_limits.shape[0]
     scores = []
     for selector in trials_each_type:
-        trial_numbers = trial_indices_from_selector(selector, n_trials)
+        trial_numbers = funcs.trial_indices_from_selector(selector, n_trials)
         if len(trial_numbers) == 0:
             continue
         onset_rates = [
@@ -285,10 +256,10 @@ def main() -> None:
             fig, axes = plt.subplots(
                 1,
                 2 * len(plot_types),
-                figsize=(5.2 * len(plot_types), 4.8),
+                figsize=(5.0 * len(plot_types), 6.4),
                 constrained_layout=True,
             )
-            fig.suptitle(f"{config['subject']} {config['session_date']} cell {cell_index}", fontsize=14)
+            fig.suptitle(f"Cell {cell_index}", fontsize=18)
 
             for col_index, plot_type in enumerate(plot_types):
                 try:
@@ -303,18 +274,17 @@ def main() -> None:
                 psth_ax = axes[2 * col_index + 1]
 
                 plot_colored_raster(raster_ax, spike_times_from_onset, index_limits, trials_each_type, labels, time_range)
-                raster_ax.set_title(f"{plot_type} raster", fontweight="bold")
+                raster_ax.set_title(f"{plot_type} - Raster Plot", fontsize=17)
                 raster_ax.set_xlabel("Time from onset (s)")
-                raster_ax.set_ylabel("Trial")
+                raster_ax.set_ylabel(raster_ylabel(plot_type))
                 add_window_markers(raster_ax, plot_type)
 
                 plot_colored_psth(psth_ax, spike_times_from_onset, index_limits, bins_start, trials_each_type, labels)
-                psth_ax.set_title(f"{plot_type} PSTH", fontweight="bold")
+                psth_ax.set_title(f"{plot_type} - PSTH", fontsize=17)
                 psth_ax.set_xlabel("Time from onset (s)")
-                psth_ax.set_ylabel("Firing rate (spk/s)")
+                psth_ax.set_ylabel("Firing Rate (spikes/s)")
                 psth_ax.grid(axis="y", linestyle="--", linewidth=0.5, alpha=0.25)
                 add_window_markers(psth_ax, plot_type)
-                maybe_add_legend(psth_ax, labels)
 
             fig.savefig(get_output_dir() / f"{config['subject']}_{config['session_date']}_{config['figure_key']}_cell_{cell_index}_psth.png", dpi=200)
             plt.close(fig)

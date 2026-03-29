@@ -7,6 +7,31 @@ import os
 from matplotlib import cm
 
 # --- Shared dataset metadata ---
+SOUND_ORDER = ("speech", "AM", "PT", "naturalSound")
+SOUND_FILE_KEYS = {
+    "speech": "speech",
+    "AM": "AM",
+    "PT": "pureTones",
+    "naturalSound": "naturalSound",
+}
+WINDOW_ORDER = ("onset", "sustained", "offset")
+WINDOW_TO_KEY = {
+    "onset": "onsetfr",
+    "sustained": "sustainedfr",
+    "offset": "offsetfr",
+}
+SOUND_DISPLAY_NAMES = {
+    "speech": "Speech",
+    "AM": "AM",
+    "PT": "Pure Tones",
+    "naturalSound": "Natural Sounds",
+}
+NEURONS_PER_SESSION = {
+    "speech": 10,
+    "AM": 30,
+    "PT": 30,
+    "naturalSound": 30,
+}
 recordingDate_list = {
     "feat001": ["2021-11-09", "2021-11-11", "2021-11-16", "2021-11-17", "2021-11-18", "2021-11-19"],
     "feat004": ["2022-01-11", "2022-01-19", "2022-01-21"],
@@ -79,6 +104,12 @@ leastCellsArea = 10000
 speech_time_range = [0.0, 0.7]
 speech_allPeriods = [[-0.5, 0], [0, 0.2], [0.2, 0.5], [0.5, 0.7]]
 SPEECH_REPEATS_PER_TOKEN = 20
+SPEECH_SYLLABLE_MAP = {
+    (0, 0): "/ba/",
+    (100, 0): "/da/",
+    (0, 100): "/pa/",
+    (100, 100): "/ta/",
+}
 
 unique_labels = [
     (0, 0),

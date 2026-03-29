@@ -12,9 +12,10 @@ if str(ROOT) not in sys.path:
 
 import matplotlib.pyplot as plt
 import numpy as np
-from jaratoolbox import behavioranalysis, celldatabase, ephyscore, spikesanalysis, settings
+from jaratoolbox import behavioranalysis, celldatabase, ephyscore, spikesanalysis
 
 import params
+import funcs
 
 try:
     from tqdm.auto import tqdm
@@ -36,14 +37,12 @@ WINDOW_LABELS = ("Onset", "Sustained", "Offset")
 
 def get_output_dir() -> Path:
     """Return the spike-rate figure output directory."""
-    output_dir = Path(params.figSavePath) / "methods" / "spike_rate"
-    output_dir.mkdir(parents=True, exist_ok=True)
-    return output_dir
+    return funcs.get_nested_figure_dir("methods", "spike_rate")
 
 
 def load_session_dataframe():
     """Load the example recording session used for the methods figures."""
-    db_path = os.path.join(settings.DATABASE_PATH, params.SPEECH_STUDY_NAME, f"celldb_{SUBJECT}.h5")
+    db_path = os.path.join(params.DATABASE_PATH, params.SPEECH_STUDY_NAME, f"celldb_{SUBJECT}.h5")
     mouse_df = celldatabase.load_hdf(db_path)
     return mouse_df[(mouse_df.date == SESSION_DATE) & (mouse_df.pdepth == PROBE_DEPTH)].reset_index(drop=True)
 
@@ -56,29 +55,6 @@ def get_trial_groups(behavior_data):
     return behavioranalysis.find_trials_each_type(trial_param, possible_params), possible_params, labels
 
 
-def trial_indices_from_selector(selector: np.ndarray, n_trials: int) -> np.ndarray:
-    """Convert one trial selector into integer trial indices."""
-    selector_array = np.asarray(selector)
-    if selector_array.dtype == bool:
-        return np.flatnonzero(selector_array)
-    selector_array = selector_array.astype(int).ravel()
-    if selector_array.size == n_trials and np.all(np.isin(selector_array, [0, 1])):
-        return np.flatnonzero(selector_array)
-    return selector_array
-
-
-def normalize_index_limits(index_limits: np.ndarray) -> np.ndarray:
-    """Ensure event-locked index limits are shaped as trials x 2."""
-    limits = np.asarray(index_limits)
-    if limits.ndim != 2:
-        raise ValueError(f"Unexpected index_limits shape {limits.shape}.")
-    if limits.shape[1] == 2:
-        return limits
-    if limits.shape[0] == 2:
-        return limits.T
-    raise ValueError(f"Unexpected index_limits shape {limits.shape}.")
-
-
 def load_plot_data(one_cell):
     """Load event-locked spike data for the example cell."""
     ephys_data, behavior_data = one_cell.load(sessiontype="FTVOTBorders", behavClass=None)
@@ -89,7 +65,7 @@ def load_plot_data(one_cell):
         PLOT_WINDOW["time_range"],
         spikeindex=False,
     )
-    index_limits = normalize_index_limits(index_limits)
+    index_limits = funcs.normalize_index_limits(index_limits)
     trials_each_type, possible_params, labels = get_trial_groups(behavior_data)
     return spike_times_from_onset, index_limits, bins_start, trials_each_type, possible_params, labels
 
@@ -108,7 +84,7 @@ def select_example_condition(
     onset_rates = []
     n_trials = index_limits.shape[0]
     for trial_indices in trials_each_type:
-        condition_trial_numbers = trial_indices_from_selector(trial_indices, n_trials)
+        condition_trial_numbers = funcs.trial_indices_from_selector(trial_indices, n_trials)
         if len(condition_trial_numbers) == 0:
             onset_rates.append(-np.inf)
             continue
@@ -162,7 +138,7 @@ def find_best_cell_index(session_df) -> int | None:
         try:
             spike_times_from_onset, index_limits, _, trials_each_type, _, _ = load_plot_data(one_cell)
             condition_index = select_example_condition(spike_times_from_onset, index_limits, trials_each_type)
-            trial_indices = trial_indices_from_selector(trials_each_type[condition_index], index_limits.shape[0])
+            trial_indices = funcs.trial_indices_from_selector(trials_each_type[condition_index], index_limits.shape[0])
             if len(trial_indices) == 0:
                 continue
             condition_rates = [
@@ -198,7 +174,7 @@ def main() -> None:
         one_cell = ephyscore.Cell(session_df.iloc[best_cell_index])
         spike_times_from_onset, index_limits, bins_start, trials_each_type, possible_params, labels = load_plot_data(one_cell)
         condition_index = select_example_condition(spike_times_from_onset, index_limits, trials_each_type)
-        trial_indices = trial_indices_from_selector(trials_each_type[condition_index], index_limits.shape[0])
+        trial_indices = funcs.trial_indices_from_selector(trials_each_type[condition_index], index_limits.shape[0])
         if len(trial_indices) == 0:
             return
         condition_label = labels[condition_index]

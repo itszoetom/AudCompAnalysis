@@ -1,9 +1,9 @@
-"""Shared PCA and UMAP helpers for population auditory-cortex analyses across both datasets."""
+"""PCA-specific analysis helpers built on shared project utilities."""
 
 from __future__ import annotations
 
 import sys
-from functools import lru_cache
+from collections.abc import Callable
 from pathlib import Path
 from typing import Iterable
 
@@ -12,67 +12,64 @@ import numpy as np
 import seaborn as sns
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
+try:
+    from tqdm.auto import tqdm
+except ImportError:  # pragma: no cover
+    def tqdm(iterable=None, *args, total=None, **kwargs):
+        return iterable if iterable is not None else range(total or 0)
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import params  # noqa: E402
+import funcs  # noqa: E402
 
-WINDOW_ORDER = ("onset", "sustained", "offset")
-WINDOW_TO_KEY = {
-    "onset": "onsetfr",
-    "sustained": "sustainedfr",
-    "offset": "offsetfr",
-}
-SOUND_ORDER = ("speech", "AM", "PT", "naturalSound")
-SOUND_FILE_KEYS = {
-    "speech": "speech",
-    "AM": "AM",
-    "PT": "pureTones",
-    "naturalSound": "naturalSound",
-}
+WINDOW_ORDER = params.WINDOW_ORDER
+apply_figure_style = funcs.apply_figure_style
+build_population_dataset = funcs.build_population_dataset
+build_sampled_dataset = funcs.build_sampled_dataset
+get_plot_brain_regions = funcs.get_plot_brain_regions
+get_target_neuron_count = funcs.get_target_neuron_count
+labels_for_sound = funcs.labels_for_sound
+list_available_sound_types = funcs.list_available_sound_types
+stimulus_tick_labels = funcs.stimulus_tick_labels
+
 DEFAULT_SCATTER_KWARGS = {"s": 24, "alpha": 0.85, "linewidths": 0}
-SPEECH_SYLLABLE_MAP = {
-    (0, 0): "/ba/",
-    (100, 0): "/da/",
-    (0, 100): "/pa/",
-    (100, 100): "/ta/",
-}
-
-
-def get_data_dir() -> Path:
-    """Return the directory containing saved firing-rate arrays."""
-    return Path(params.dbSavePath)
 
 
 def get_figure_dir() -> Path:
     """Return the PCA figure output directory."""
-    figure_dir = Path(params.figSavePath) / "pca"
-    figure_dir.mkdir(parents=True, exist_ok=True)
-    return figure_dir
+    return funcs.get_figure_dir("pca")
 
 
-def apply_figure_style() -> None:
-    """Apply the shared paper-style plotting defaults."""
-    sns.set_theme(
-        style="ticks",
-        context="paper",
-        rc={
-            "axes.spines.top": False,
-            "axes.spines.right": False,
-            "axes.grid": False,
-            "figure.dpi": 160,
-            "savefig.dpi": 300,
-            "font.family": "serif",
-            "font.serif": ["Times New Roman", "Times", "DejaVu Serif"],
-        },
+def panel_conditions(sound_type: str) -> list[tuple[int, str, int, str]]:
+    """Return row/column panel conditions for one sound type."""
+    return [
+        (row_index, brain_area, col_index, window_name)
+        for row_index, brain_area in enumerate(get_plot_brain_regions(sound_type))
+        for col_index, window_name in enumerate(WINDOW_ORDER)
+    ]
+
+
+def make_sound_figure(
+    sound_type: str,
+    title: str,
+    *,
+    width_scale: float = 4.0,
+    height_scale: float = 3.5,
+    sharey: bool = False,
+) -> tuple[plt.Figure, np.ndarray]:
+    """Create a standard sound-by-region-by-window figure grid."""
+    brain_regions = get_plot_brain_regions(sound_type)
+    return plt.subplots(
+        len(brain_regions),
+        len(WINDOW_ORDER),
+        figsize=(width_scale * len(WINDOW_ORDER), height_scale * len(brain_regions)),
+        squeeze=False,
+        sharey=sharey,
+        constrained_layout=True,
     )
-
-
-def get_condition_color(sound_type: str, brain_area: str) -> tuple[float, ...]:
-    """Return the configured region color for one sound type."""
-    return params.color_palette.get(f"{brain_area} - {sound_type}", (0.25, 0.25, 0.25, 1.0))
 
 
 def format_panel_title(brain_area: str, window_name: str) -> str:
@@ -80,212 +77,9 @@ def format_panel_title(brain_area: str, window_name: str) -> str:
     return f"{params.short_names.get(brain_area, brain_area)}\n{window_name.capitalize()}"
 
 
-def get_plot_brain_regions(sound_type: str) -> list[str]:
-    """Return the ordered brain regions to include in paper figures."""
-    regions = get_brain_regions(sound_type)
-    if sound_type == "speech":
-        regions = [region for region in regions if region != "Dorsal auditory area"]
-    return [region for region in params.targetSiteNames if region in regions]
-
-
-def get_target_neuron_count(sound_type: str) -> int:
-    """Return the fixed per-figure neuron count used in thesis figures."""
-    return 99 if sound_type == "speech" else 278
-
-
-def sample_neuron_indices(sound_type: str, brain_area: str, n_neurons: int | None = None, seed: int = 42) -> np.ndarray:
-    """Return reproducibly sampled neuron indices for one sound and brain area."""
-    sound_data = load_sound_npz(sound_type)
-    brain_indices = np.flatnonzero(sound_data["brainRegionArray"] == brain_area)
-    target = n_neurons if n_neurons is not None else min(get_target_neuron_count(sound_type), len(brain_indices))
-    if len(brain_indices) <= target:
-        return brain_indices
-    rng = np.random.default_rng(seed + sum(f"{sound_type}-{brain_area}".encode("utf-8")))
-    return np.sort(rng.choice(brain_indices, size=target, replace=False))
-
-
-def build_sampled_dataset(sound_type: str, window_name: str, brain_area: str, n_neurons: int | None = None) -> dict[str, np.ndarray] | None:
-    """Return one population dataset after per-figure neuron subsampling."""
-    sound_data = load_sound_npz(sound_type)
-    cell_indices = sample_neuron_indices(sound_type, brain_area, n_neurons=n_neurons)
-    if len(cell_indices) == 0:
-        return None
-    x = sound_data[WINDOW_TO_KEY[window_name]][cell_indices].T
-    return {
-        "sound_type": sound_type,
-        "window_name": window_name,
-        "brain_area": brain_area,
-        "X": x,
-        "Y": sound_data["stimArray"],
-        "Y_labels": sound_data["stimLabelArray"],
-        "mouse_ids": sound_data["mouseIDArray"][cell_indices],
-        "session_ids": sound_data["sessionIDArray"][cell_indices],
-    }
-
-
-def format_speech_label(label: tuple[int, int] | np.ndarray) -> str:
-    """Format one speech tuple as `"(FT, VOT)"`."""
-    ft_value, vot_value = tuple(np.asarray(label).tolist())
-    return str((ft_value, vot_value))
-
-
-def natural_sound_labels() -> list[str]:
-    """Return written natural-sound labels in the stored presentation order."""
-    return params.NAT_SOUND_LABELS
-
-
-def calculate_participation_ratio(explained_variance_ratio):
-    return ((np.sum(explained_variance_ratio)) ** 2) / np.sum(explained_variance_ratio ** 2)
-
-
-def stimulus_tick_labels(sound_type: str, stim_array: np.ndarray) -> list[str]:
-    """Return human-readable stimulus labels for one sound type."""
-    if sound_type == "speech":
-        return [format_speech_label(label) for label in np.asarray(stim_array)]
-    if sound_type == "naturalSound":
-        labels = natural_sound_labels()
-        return [labels[int(value)] for value in np.asarray(stim_array, dtype=int)]
-    if sound_type == "AM":
-        return [f"AM White Noise \u2014 {int(value)} Hz" for value in np.asarray(stim_array, dtype=float)]
-    return [f"Pure Tones \u2014 {int(value)} Hz" for value in np.asarray(stim_array, dtype=float)]
-
-
-def list_available_sound_types() -> list[str]:
-    """List the sound types with saved `.npz` arrays available."""
-    data_dir = get_data_dir()
-    available = []
-    for sound_type in SOUND_ORDER:
-        file_key = SOUND_FILE_KEYS[sound_type]
-        if (data_dir / f"fr_arrays_{file_key}.npz").exists():
-            available.append(sound_type)
-    return available
-
-
-def _collapse_stimulus_array(stim_array: np.ndarray, n_trials: int) -> np.ndarray:
-    """Collapse redundant stimulus arrays to one shared trial-wise label vector."""
-    if stim_array.ndim == 1:
-        return stim_array
-
-    if stim_array.ndim == 2 and stim_array.shape[1] == n_trials:
-        first_row = stim_array[0]
-        if not np.all(stim_array == first_row):
-            raise ValueError("Stimulus labels are not consistent across cells.")
-        return first_row
-
-    if stim_array.shape[0] == n_trials:
-        return stim_array
-
-    if stim_array.shape[0] % n_trials != 0:
-        raise ValueError(
-            f"Stimulus array with shape {stim_array.shape} is not compatible with {n_trials} trials."
-        )
-
-    n_repeats = stim_array.shape[0] // n_trials
-    reshaped = stim_array.reshape((n_repeats, n_trials) + stim_array.shape[1:])
-    first_repeat = reshaped[0]
-    if not np.all(reshaped == first_repeat):
-        raise ValueError("Stimulus labels are not consistent across sessions.")
-    return first_repeat
-
-
-def load_sound_npz(sound_type: str) -> dict[str, np.ndarray]:
-    """Load one saved firing-rate array file and normalize its label shapes."""
-    file_key = SOUND_FILE_KEYS.get(sound_type, sound_type)
-    filepath = get_data_dir() / f"fr_arrays_{file_key}.npz"
-    if not filepath.exists():
-        raise FileNotFoundError(f"No preprocessed file found for {sound_type}: {filepath}")
-
-    raw = np.load(filepath, allow_pickle=True)
-    onset = raw["onsetfr"]
-    stim_labels = _collapse_stimulus_array(raw["stimArray"], onset.shape[1])
-    stim_numeric_source = raw["stimNumericArray"] if "stimNumericArray" in raw else raw["stimArray"]
-    stim = _collapse_stimulus_array(stim_numeric_source, onset.shape[1])
-    return {
-        "onsetfr": onset,
-        "sustainedfr": raw["sustainedfr"],
-        "offsetfr": raw["offsetfr"],
-        "brainRegionArray": raw["brainRegionArray"],
-        "stimArray": stim,
-        "stimLabelArray": stim_labels,
-        "mouseIDArray": raw["mouseIDArray"],
-        "sessionIDArray": raw["sessionIDArray"],
-    }
-
-
-def get_brain_regions(sound_type: str) -> list[str]:
-    """Return the sorted brain regions present for one sound type."""
-    sound_data = load_sound_npz(sound_type)
-    return sorted(np.unique(sound_data["brainRegionArray"]).tolist())
-
-
-@lru_cache(maxsize=None)
-def get_sound_min_neuron_count(sound_type: str) -> int:
-    """Return the minimum neuron count across brain regions for one sound type."""
-    sound_data = load_sound_npz(sound_type)
-    counts = []
-    for brain_area in get_brain_regions(sound_type):
-        counts.append(np.count_nonzero(sound_data["brainRegionArray"] == brain_area))
-    if not counts:
-        raise ValueError(f"No brain regions found for {sound_type}.")
-    return min(counts)
-
-
-@lru_cache(maxsize=None)
-def get_sampled_cell_indices(sound_type: str, brain_area: str) -> np.ndarray:
-    """Return cached equal-neuron indices for one sound and brain area."""
-    sound_data = load_sound_npz(sound_type)
-    brain_indices = np.flatnonzero(sound_data["brainRegionArray"] == brain_area)
-    if len(brain_indices) == 0:
-        return brain_indices
-
-    target_count = get_sound_min_neuron_count(sound_type)
-    if len(brain_indices) <= target_count:
-        return brain_indices
-
-    seed = sum(f"{sound_type}-{brain_area}".encode("utf-8"))
-    rng = np.random.default_rng(seed)
-    sampled = np.sort(rng.choice(brain_indices, size=target_count, replace=False))
-    return sampled
-
-
-def build_population_dataset(
-    sound_type: str,
-    window_name: str,
-    brain_area: str,
-) -> dict[str, np.ndarray] | None:
-    """Build one population dataset for a sound, time window, and brain region."""
-    sound_data = load_sound_npz(sound_type)
-    cell_indices = get_sampled_cell_indices(sound_type, brain_area)
-    if len(cell_indices) == 0:
-        return None
-
-    x_key = WINDOW_TO_KEY[window_name]
-    x = sound_data[x_key][cell_indices].T
-    return {
-        "sound_type": sound_type,
-        "window_name": window_name,
-        "brain_area": brain_area,
-        "X": x,
-        "Y": sound_data["stimArray"],
-        "Y_labels": sound_data["stimLabelArray"],
-        "mouse_ids": sound_data["mouseIDArray"][cell_indices],
-        "session_ids": sound_data["sessionIDArray"][cell_indices],
-    }
-
-
-def iter_population_datasets(
-    sound_types: Iterable[str] | None = None,
-    windows: Iterable[str] = WINDOW_ORDER,
-) -> list[dict[str, np.ndarray]]:
-    """Iterate through all available population datasets."""
-    datasets = []
-    for sound_type in sound_types or list_available_sound_types():
-        for window_name in windows:
-            for brain_area in get_brain_regions(sound_type):
-                dataset = build_population_dataset(sound_type, window_name, brain_area)
-                if dataset is not None:
-                    datasets.append(dataset)
-    return datasets
+def calculate_participation_ratio(explained_variance_ratio: np.ndarray) -> float:
+    """Return the participation ratio for one PCA spectrum."""
+    return float((np.sum(explained_variance_ratio) ** 2) / np.sum(explained_variance_ratio ** 2))
 
 
 def average_trials_by_stimulus(dataset: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
@@ -308,10 +102,9 @@ def average_trials_by_stimulus(dataset: dict[str, np.ndarray]) -> dict[str, np.n
     return averaged
 
 
-def compute_pca_summary(x: np.ndarray) -> dict[str, np.ndarray]:
+def compute_pca_summary(x: np.ndarray) -> dict[str, np.ndarray | float | int]:
     """Standardize one population matrix and compute PCA summary statistics."""
-    scaler = StandardScaler()
-    x_scaled = scaler.fit_transform(x)
+    x_scaled = StandardScaler().fit_transform(x)
     pca = PCA()
     scores = pca.fit_transform(x_scaled)
     explained = pca.explained_variance_ratio_
@@ -324,48 +117,29 @@ def compute_pca_summary(x: np.ndarray) -> dict[str, np.ndarray]:
     }
 
 
-def get_sound_scree_ymax(sound_type: str, average_trials: bool = False) -> float:
-    """Return a shared scree y-limit for one sound figure."""
-    max_explained = 0.0
-    for window_name in WINDOW_ORDER:
-        for brain_area in get_brain_regions(sound_type):
-            dataset = build_population_dataset(sound_type, window_name, brain_area)
-            if dataset is None:
-                continue
-            if average_trials:
-                dataset = average_trials_by_stimulus(dataset)
-            summary = compute_pca_summary(dataset["X"])
-            if len(summary["explained_variance_ratio"]) == 0:
-                continue
-            max_explained = max(max_explained, float(summary["explained_variance_ratio"][0]) * 100)
-    return max_explained * 1.05 if max_explained else 1.0
+def iter_population_datasets(
+    sound_types: Iterable[str] | None = None,
+    windows: Iterable[str] = params.WINDOW_ORDER,
+) -> list[dict[str, np.ndarray]]:
+    """Iterate through all available equal-neuron population datasets."""
+    datasets = []
+    for sound_type in sound_types or funcs.list_available_sound_types():
+        for window_name in windows:
+            for brain_area in funcs.get_brain_regions(sound_type):
+                dataset = build_population_dataset(sound_type, window_name, brain_area)
+                if dataset is not None:
+                    datasets.append(dataset)
+    return datasets
 
 
-def labels_for_sound(sound_type: str, stim_array: np.ndarray) -> np.ndarray:
-    """Convert stimulus identities into numeric color values."""
-    if sound_type == "speech":
-        label_to_number = {tuple(label): idx for idx, label in enumerate(params.unique_labels)}
-        return np.array([label_to_number[tuple(label)] for label in np.asarray(stim_array)])
-
-    stim_values = np.asarray(stim_array)
-    if stim_values.ndim > 1:
-        if stim_values.dtype.kind in {"O", "U", "S"}:
-            unique_labels, inverse = np.unique(stim_values, axis=0, return_inverse=True)
-            return inverse
-        first_row = stim_values[0]
-        if np.allclose(stim_values, first_row):
-            stim_values = first_row
-
-    stim_values = np.asarray(stim_values, dtype=float)
-    if np.any(stim_values <= 0):
-        _, inverse = np.unique(stim_values, return_inverse=True)
-        return inverse
-    return np.log10(stim_values)
-
-
-def plot_scree(ax: plt.Axes, pca_summary: dict[str, np.ndarray], title: str, y_max: float | None = None) -> None:
+def plot_scree(
+    ax: plt.Axes,
+    pca_summary: dict[str, np.ndarray | float | int],
+    title: str,
+    y_max: float | None = None,
+) -> None:
     """Draw a scree plot for the first principal components."""
-    explained = pca_summary["explained_variance_ratio"]
+    explained = np.asarray(pca_summary["explained_variance_ratio"])
     n_components = min(len(explained), 12)
     ax.bar(np.arange(n_components), explained[:n_components] * 100, color="black")
     ax.set_title(title)
@@ -386,32 +160,47 @@ def plot_scree(ax: plt.Axes, pca_summary: dict[str, np.ndarray], title: str, y_m
     sns.despine(ax=ax)
 
 
-def plot_pca_scatter(
-    ax: plt.Axes,
-    dataset: dict[str, np.ndarray],
-    pca_summary: dict[str, np.ndarray],
-    title: str,
-    labels: np.ndarray | None = None,
-) -> None:
-    """Draw a PC1-versus-PC2 scatter plot."""
-    scores = pca_summary["scores"]
-    color_values = labels if labels is not None else labels_for_sound(dataset["sound_type"], dataset["Y"])
-    scatter = ax.scatter(scores[:, 0], scores[:, 1], c=color_values, cmap="viridis", **DEFAULT_SCATTER_KWARGS)
-    explained = pca_summary["explained_variance_ratio"]
-    ax.set_title(title)
-    ax.set_xlabel(f"PC1 ({explained[0] * 100:.1f}%)")
-    ax.set_ylabel(f"PC2 ({explained[1] * 100:.1f}%)")
-    ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.25)
-    sns.despine(ax=ax)
-    plt.colorbar(scatter, ax=ax)
-
-
-def make_population_figure(n_rows: int, n_windows: int, *, square_scale: float = 3.2) -> tuple[plt.Figure, np.ndarray]:
-    """Create a square-ish grid for population figures."""
-    return plt.subplots(
-        n_rows,
-        2 * n_windows,
-        figsize=(square_scale * 2 * n_windows, square_scale * n_rows),
-        squeeze=False,
-        constrained_layout=True,
+def shared_scatter_limits(results: dict[tuple[str, str], dict[str, np.ndarray]]) -> tuple[float, float, float, float]:
+    """Compute common PC axis limits for one figure."""
+    x_values = [panel["summary"]["scores"][:, 0] for panel in results.values()]
+    y_values = [panel["summary"]["scores"][:, 1] for panel in results.values()]
+    return (
+        min(values.min() for values in x_values),
+        max(values.max() for values in x_values),
+        min(values.min() for values in y_values),
+        max(values.max() for values in y_values),
     )
+
+
+def add_stimulus_colorbar(fig: plt.Figure, scatter, sound_type: str, stim_array: np.ndarray) -> None:
+    """Add one shared stimulus colorbar for a sound figure."""
+    colorbar = fig.colorbar(scatter, ax=fig.axes, location="bottom", fraction=0.03, pad=0.04)
+    color_values = labels_for_sound(sound_type, stim_array)
+    tick_labels = stimulus_tick_labels(sound_type, stim_array)
+    unique_values, first_indices = np.unique(color_values, return_index=True)
+    colorbar.set_ticks(unique_values)
+    colorbar.set_ticklabels([tick_labels[index] for index in first_indices])
+    colorbar.ax.tick_params(labelsize=8, rotation=35)
+    colorbar.set_label("Stimulus", fontsize=12)
+
+
+def collect_sound_results(
+    sound_type: str,
+    build_panel: Callable[[str, str], dict[str, np.ndarray] | None],
+    summarize_panel: Callable[[dict[str, np.ndarray]], dict[str, np.ndarray | float | int]],
+    *,
+    desc: str,
+) -> dict[tuple[str, str], dict[str, np.ndarray]]:
+    """Collect datasets and summaries for one sound figure."""
+    results = {}
+    for _, brain_area, _, window_name in tqdm(
+        panel_conditions(sound_type),
+        desc=desc,
+        unit="panel",
+        dynamic_ncols=True,
+    ):
+        dataset = build_panel(brain_area, window_name)
+        if dataset is None:
+            continue
+        results[(brain_area, window_name)] = {"dataset": dataset, "summary": summarize_panel(dataset)}
+    return results

@@ -12,32 +12,38 @@ except ImportError:  # pragma: no cover
 try:
     from .pca_analysis import (
         WINDOW_ORDER,
+        add_stimulus_colorbar,
         apply_figure_style,
         average_trials_by_stimulus,
         build_sampled_dataset,
         compute_pca_summary,
+        collect_sound_results,
         format_panel_title,
         get_figure_dir,
         get_plot_brain_regions,
         get_target_neuron_count,
         labels_for_sound,
         list_available_sound_types,
-        stimulus_tick_labels,
+        make_sound_figure,
+        panel_conditions,
     )
 except ImportError:
     from pca_analysis import (
         WINDOW_ORDER,
+        add_stimulus_colorbar,
         apply_figure_style,
         average_trials_by_stimulus,
         build_sampled_dataset,
         compute_pca_summary,
+        collect_sound_results,
         format_panel_title,
         get_figure_dir,
         get_plot_brain_regions,
         get_target_neuron_count,
         labels_for_sound,
         list_available_sound_types,
-        stimulus_tick_labels,
+        make_sound_figure,
+        panel_conditions,
     )
 
 
@@ -47,38 +53,35 @@ def main() -> None:
     sound_types = list_available_sound_types()
     for sound_type in tqdm(sound_types, desc="PCA averaged figures", unit="sound", dynamic_ncols=True):
         print(f"Building trial-averaged PCA plots for {sound_type}...")
-        brain_regions = get_plot_brain_regions(sound_type)
         target_neurons = get_target_neuron_count(sound_type)
-        fig, axes = plt.subplots(
-            len(brain_regions),
-            len(WINDOW_ORDER),
-            figsize=(4.0 * len(WINDOW_ORDER), 3.5 * len(brain_regions)),
-            squeeze=False,
-            constrained_layout=True,
-        )
+        fig, axes = make_sound_figure(sound_type, "")
         fig.suptitle(f"{sound_type} averaged PCA (n={target_neurons} neurons per region)", fontsize=16, fontweight="bold")
-        last_scatter = None
 
-        panel_conditions = [(row_index, brain_area, col_index, window_name) for row_index, brain_area in enumerate(brain_regions) for col_index, window_name in enumerate(WINDOW_ORDER)]
-        for row_index, brain_area, col_index, window_name in tqdm(
-            panel_conditions,
-            desc=f"PCA averaged panels ({sound_type})",
-            unit="panel",
-            dynamic_ncols=True,
-        ):
-            ax = axes[row_index, col_index]
+        def build_panel(brain_area: str, window_name: str):
             dataset = build_sampled_dataset(sound_type, window_name, brain_area, n_neurons=target_neurons)
-            if dataset is None:
+            return None if dataset is None else average_trials_by_stimulus(dataset)
+
+        results = collect_sound_results(
+            sound_type,
+            build_panel,
+            lambda dataset: compute_pca_summary(dataset["X"]),
+            desc=f"PCA averaged panels ({sound_type})",
+        )
+        last_scatter = None
+        for row_index, brain_area, col_index, window_name in panel_conditions(sound_type):
+            ax = axes[row_index, col_index]
+            panel = results.get((brain_area, window_name))
+            if panel is None:
                 ax.axis("off")
                 continue
-            averaged_dataset = average_trials_by_stimulus(dataset)
-            summary = compute_pca_summary(averaged_dataset["X"])
+            dataset = panel["dataset"]
+            summary = panel["summary"]
             scores = summary["scores"]
             explained = summary["explained_variance_ratio"]
             last_scatter = ax.scatter(
                 scores[:, 0],
                 scores[:, 1],
-                c=labels_for_sound(sound_type, averaged_dataset["Y"]),
+                c=labels_for_sound(sound_type, dataset["Y"]),
                 cmap="viridis",
                 s=36,
                 alpha=0.9,
@@ -89,16 +92,8 @@ def main() -> None:
             ax.set_ylabel(f"PC2 ({explained[1] * 100:.1f}%)")
             ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.25)
 
-        if last_scatter is not None:
-            colorbar = fig.colorbar(last_scatter, ax=fig.axes, location="bottom", fraction=0.03, pad=0.04)
-            stim_array = averaged_dataset["Y"]
-            color_values = labels_for_sound(sound_type, stim_array)
-            tick_labels = stimulus_tick_labels(sound_type, stim_array)
-            unique_values, first_indices = np.unique(color_values, return_index=True)
-            colorbar.set_ticks(unique_values)
-            colorbar.set_ticklabels([tick_labels[index] for index in first_indices])
-            colorbar.ax.tick_params(labelsize=8, rotation=35)
-            colorbar.set_label("Stimulus", fontsize=12)
+        if last_scatter is not None and results:
+            add_stimulus_colorbar(fig, last_scatter, sound_type, next(iter(results.values()))["dataset"]["Y"])
 
         fig.savefig(get_figure_dir() / f"{sound_type}_population_pca_averaged.png", dpi=300)
         plt.close(fig)
@@ -106,4 +101,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-import numpy as np

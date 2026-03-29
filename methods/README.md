@@ -14,10 +14,6 @@ Descriptive methods figures for dataset summaries and example single-cell respon
 - `plot_single_mouse_spikerate.py`
   one example single-neuron firing-rate figure with raster, PSTH, and onset/sustained/offset rate bars
 
-## Shared helpers
-- `methods_analysis.py`
-  loading, PCA/ridge helper functions, figure styling, and per-mouse/per-session dataset builders
-
 ## Outputs
 - figures are written to `figSavePath/methods/`
 - these are descriptive figures and do not add inferential statistics

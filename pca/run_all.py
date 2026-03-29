@@ -9,25 +9,22 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from pca.pca_umap import main as plot_umap  # noqa: E402
-from pca.plot_pca_all_mice import main as plot_population_pca  # noqa: E402
-from pca.plot_pca_all_mice_averages import main as plot_average_pca  # noqa: E402
-from pca.plot_pca_particRatio_dist import main as plot_participation_ratio  # noqa: E402
+from pca.plot_umap_population import main as plot_umap  # noqa: E402
+from pca.plot_pca_population import main as plot_population_pca  # noqa: E402
+from pca.plot_pca_population_avgs import main as plot_average_pca  # noqa: E402
 from pca.plot_pca_speech import main as plot_speech_pca  # noqa: E402
 
 
 def main() -> None:
     """Run all PCA figures."""
     print("Running PCA figures...")
-    print("[1/5] Plotting population PCA figures...")
+    print("[1/4] Plotting population PCA figures...")
     plot_population_pca()
-    print("[2/5] Plotting trial-averaged PCA figures...")
+    print("[2/4] Plotting trial-averaged PCA figures...")
     plot_average_pca()
-    print("[3/5] Plotting participation-ratio distributions...")
-    plot_participation_ratio()
-    print("[4/5] Plotting speech FT/VOT PCA figures...")
+    print("[3/4] Plotting speech FT/VOT PCA figures...")
     plot_speech_pca()
-    print("[5/5] Plotting UMAP figures...")
+    print("[4/4] Plotting UMAP figures...")
     plot_umap()
 
 

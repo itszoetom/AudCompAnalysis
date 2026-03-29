@@ -26,6 +26,8 @@ Speech Dataset:
 Root:
 - `build_firing_rate_arrays.py`
   builds the saved `.npz` response arrays for all sound types
+- `funcs.py`
+  centralized shared data loading, dataset builders, labeling, neuron sampling, figure setup, and the canonical ridge CV pipeline
 - `params.py`
   shared paths, subject lists, stimulus metadata, spike windows, and plotting colors
 - `plot_stats.py`
@@ -33,39 +35,31 @@ Root:
 
 `pca/`:
 - `pca_analysis.py`
-  shared PCA loading, averaging, labeling, and subsampling helpers
+  PCA-specific summaries and plotting helpers built on `funcs.py`
 - `README.md`
   folder-level run instructions and outputs
 - `run_all.py`
   runs the full PCA figure set
-- `plot_pca_all_mice.py`
+- `plot_pca_population.py`
   population PCA scatter and scree plots
-- `plot_pca_all_mice_averages.py`
+- `plot_pca_population_averages.py`
   trial-averaged PCA plots
-- `plot_pca_particRatio_dist.py`
-  participation-ratio distributions by brain region and spike window
-- `pca_umap.py`
+- `plot_umap_population.py`
   UMAP population plots
 
 `ridge/`:
 - `ridge_analysis.py`
-  shared ridge-regression helpers and repeated evaluation functions
+  ridge-specific target builders and wrappers around the shared 5-fold standardized CV pipeline in `funcs.py`
 - `README.md`
   folder-level run instructions and outputs
 - `run_all.py`
   runs the full ridge figure set
-- `plot_ridge_boxplot.py`
-  population ridge `R^2` distributions by brain region and spike window
-- `plot_ridge_per_mouse.py`
-  per-mouse ridge `R^2` distributions in the same region-comparison format
 - `plot_ridge_per_session.py`
-  per-session ridge `R^2` distributions in the same region-comparison format
-- `ridge_population.py`
-  predicted-vs-actual ridge plots
+  per-session ridge `R^2` distributions from repeated within-session neuron subsampling and `5-fold` CV
+- `plot_ridge_population.py`
+  population predicted-vs-actual ridge plots plus population `R^2` summaries
 
 `methods/`:
-- `methods_analysis.py`
-  shared array-loading and figure helpers for methods figures
 - `README.md`
   folder-level run instructions and outputs
 - `run_all.py`
@@ -79,18 +73,14 @@ Root:
 
 `discriminability/`:
 - `discriminability_analysis.py`
-  shared session-based discriminability pipeline
+  discriminability-specific population analysis, method definitions, pairwise analysis, plotting, and stats helpers
 - `README.md`
   folder-level run instructions and outputs
-- `pearson/analysis.py`, `pearson/plot.py`
-- `linearSVM/analysis.py`, `linearSVM/plot.py`
-- `lda/analysis.py`, `lda/plot.py`
-- `run_all_analyses.py`
-  runs all discriminability analyses
+- `plot_pearson.py`
+- `plot_linear_svm.py`
+- `plot_lda.py`
 - `run_all.py`
   runs the full discriminability pipeline
-
-Legacy exploratory discriminability notebooks and scripts are still present in the method subfolders, but the current pipeline is the `analysis.py` and `plot.py` entry points plus the top-level runner scripts.
 
 Project documentation:
 - `THESIS_METHODS_OUTLINE.md`
@@ -112,6 +102,7 @@ Project documentation:
 - Summary distributions are organized as brain-region comparisons on a shared axis, with one panel per spike window and one figure per sound type.
 - Statistical annotations use Bonferroni-corrected pairwise tests.
 - Ridge summary boxplots use MWU plus Bonferroni correction.
+- Linear-SVM discriminability also writes per-condition `C` tuning CSV output and hyperparameter-tuning plots.
 - Natural-sound discriminability also includes within-category vs between-category summary boxplots.
 
 ## Environment Notes

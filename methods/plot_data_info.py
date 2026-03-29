@@ -20,16 +20,12 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import params
-
-try:
-    from .methods_analysis import apply_figure_style, get_figure_dir, load_sound_npz
-except ImportError:
-    from methods_analysis import apply_figure_style, get_figure_dir, load_sound_npz
+import funcs
 
 
 def build_count_frame(sound_type: str) -> pd.DataFrame:
     """Return one metadata table of neuron counts by mouse, session, and brain region."""
-    sound_data = load_sound_npz(sound_type)
+    sound_data = funcs.load_sound_npz(sound_type)
     return pd.DataFrame(
         {
             "Brain Area": sound_data["brainRegionArray"],
@@ -101,13 +97,13 @@ def plot_summary_figure(count_frame: pd.DataFrame, title: str, filename: str, se
     for ax in axes:
         ax.grid(axis="y", linestyle="--", linewidth=0.5, alpha=0.25)
 
-    fig.savefig(get_figure_dir() / filename, dpi=300)
+    fig.savefig(funcs.get_figure_dir("methods") / filename, dpi=300)
     plt.close(fig)
 
 
 def main() -> None:
     """Run combined non-speech and speech data-summary figures."""
-    apply_figure_style()
+    funcs.apply_figure_style()
     print("Building combined non-speech and speech data summaries...")
     speech_frame = build_count_frame("speech")
     nonspeech_frame = build_count_frame("PT")

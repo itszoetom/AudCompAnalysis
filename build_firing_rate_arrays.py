@@ -9,6 +9,7 @@ import pandas as pd
 from jaratoolbox import celldatabase, ephyscore, spikesanalysis
 from tqdm import tqdm
 
+import funcs
 import params
 
 WINDOW_NAMES = params.WINDOW_NAMES
@@ -39,41 +40,6 @@ def save_npz(filename: Path, **arrays: np.ndarray) -> None:
 def speech_trial_labels(bdata: dict) -> np.ndarray:
     """Return trial labels as a two-column `(FT, VOT)` array."""
     return np.column_stack((bdata["targetFTpercent"], bdata["targetVOTpercent"])).astype(int)
-
-
-def speech_display_labels(labels: np.ndarray) -> np.ndarray:
-    """Return readable speech labels like `"(33, 100)"` for each trial."""
-    return np.asarray(
-        [params.SPEECH_DISPLAY_LABELS.get(tuple(label), str(tuple(label))) for label in labels],
-        dtype=object,
-    )
-
-
-def natural_sound_display_labels(stim_ids: np.ndarray) -> np.ndarray:
-    """Return readable natural-sound labels like `"Bees 1"` for each trial."""
-    label_array = np.empty(stim_ids.shape, dtype=object)
-    for index, value in np.ndenumerate(stim_ids):
-        if np.isnan(value):
-            label_array[index] = ""
-        else:
-            label_array[index] = params.NAT_SOUND_LABEL_MAP[int(value)]
-    return label_array
-
-
-def select_speech_trials(labels: np.ndarray, max_repeats: int) -> tuple[np.ndarray, np.ndarray]:
-    """Keep the first `max_repeats` repeats for each speech token and sort by `(FT, VOT)`."""
-    counts: dict[tuple[int, int], int] = {}
-    keep_indices = []
-    for trial_index, label in enumerate(map(tuple, labels.tolist())):
-        repeat_count = counts.get(label, 0)
-        if repeat_count < max_repeats:
-            keep_indices.append(trial_index)
-            counts[label] = repeat_count + 1
-
-    keep_indices = np.asarray(keep_indices, dtype=int)
-    filtered_labels = labels[keep_indices]
-    sort_order = np.lexsort((filtered_labels[:, 1], filtered_labels[:, 0]))
-    return keep_indices[sort_order], filtered_labels[sort_order]
 
 
 def load_speech_session(
@@ -122,7 +88,7 @@ def build_speech_arrays() -> None:
                     continue
 
                 ensemble.eventlocked_spiketimes(ephys_data["events"]["stimOn"], params.speech_time_range)
-                trial_indices, sorted_labels = select_speech_trials(
+                trial_indices, sorted_labels = funcs.select_speech_trials(
                     speech_trial_labels(bdata),
                     max_repeats=params.SPEECH_REPEATS_PER_TOKEN,
                 )
@@ -154,7 +120,7 @@ def build_speech_arrays() -> None:
         sustainedfr=np.concatenate(session_store["sustained"]["X"], axis=0),
         offsetfr=np.concatenate(session_store["offset"]["X"], axis=0),
         brainRegionArray=np.asarray(session_store["onset"]["brain"], dtype=object),
-        stimArray=speech_display_labels(reference_labels),
+        stimArray=funcs.stimulus_display_labels("speech", reference_labels),
         stimNumericArray=reference_labels,
         mouseIDArray=np.asarray(session_store["onset"]["mouse"], dtype=object),
         sessionIDArray=np.asarray(session_store["onset"]["session"], dtype=object),
@@ -254,7 +220,7 @@ def build_all_non_speech_arrays() -> None:
         arrays_to_save = dict(arrays)
         arrays_to_save["stimNumericArray"] = arrays["stimArray"][0].copy()
         if stim_type == "naturalSound":
-            arrays_to_save["stimArray"] = natural_sound_display_labels(arrays["stimArray"][0])
+            arrays_to_save["stimArray"] = funcs.stimulus_display_labels("naturalSound", arrays["stimArray"][0])
         save_npz(Path(params.dbSavePath) / f"fr_arrays_{stim_type}.npz", **arrays_to_save)
 
 

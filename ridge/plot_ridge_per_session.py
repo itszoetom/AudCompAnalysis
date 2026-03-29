@@ -2,69 +2,57 @@
 
 from __future__ import annotations
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
 from sklearn.linear_model import RidgeCV
 from sklearn.metrics import r2_score
 from sklearn.model_selection import KFold
 from sklearn.preprocessing import StandardScaler
+
+import params
 try:
     from tqdm.auto import tqdm
 except ImportError:  # pragma: no cover
     def tqdm(iterable=None, *args, total=None, **kwargs):
         return iterable if iterable is not None else range(total or 0)
 
-import params
-
 try:
-    from ..plot_stats import add_pairwise_annotations, box_centers, pairwise_group_tests
+    from .ridge_analysis import (
+        RIDGE_ALPHAS,
+        apply_figure_style,
+        available_mice,
+        available_sessions,
+        build_dataset,
+        build_target_datasets,
+        get_plot_brain_regions,
+        list_available_sound_types,
+        plot_ridge_summary,
+        WINDOW_ORDER,
+    )
 except ImportError:
-    from plot_stats import add_pairwise_annotations, box_centers, pairwise_group_tests
-
-try:
-    from methods.methods_analysis import WINDOW_ORDER, available_mice, available_sessions, build_dataset, get_brain_regions
-except ImportError:
-    from methods_analysis import WINDOW_ORDER, available_mice, available_sessions, build_dataset, get_brain_regions
-
-try:
-    from .ridge_analysis import apply_figure_style, get_output_dir
-except ImportError:
-    from ridge_analysis import apply_figure_style, get_output_dir
-
-ALPHAS = np.logspace(-10, 5, 200)
-
-
-def score_session_dataset(x: np.ndarray, y: np.ndarray, log_target: bool) -> float:
-    """Return the mean 5-fold ridge R2 for one neuron-subsampled session dataset."""
-    target = np.log10(y + 1e-8) if log_target else y
-    splitter = KFold(n_splits=5, shuffle=True, random_state=42)
-    scores = []
-    for train_index, test_index in splitter.split(x):
-        x_train, x_test = x[train_index], x[test_index]
-        y_train, y_test = target[train_index], target[test_index]
-        scaler = StandardScaler()
-        x_train = scaler.fit_transform(x_train)
-        x_test = scaler.transform(x_test)
-        ridge = RidgeCV(
-            alphas=ALPHAS,
-            cv=KFold(n_splits=min(5, len(x_train)), shuffle=True, random_state=42),
-            scoring="r2",
-        )
-        ridge.fit(x_train, y_train)
-        scores.append(r2_score(y_test, ridge.predict(x_test)))
-    return float(np.mean(scores))
+    from ridge_analysis import (
+        RIDGE_ALPHAS,
+        apply_figure_style,
+        available_mice,
+        available_sessions,
+        build_dataset,
+        build_target_datasets,
+        get_plot_brain_regions,
+        list_available_sound_types,
+        plot_ridge_summary,
+        WINDOW_ORDER,
+    )
 
 
-def build_session_frame(sound_type: str, n_neurons: int = 30, n_subsamples: int = 100) -> pd.DataFrame:
-    """Return repeated per-session ridge scores for one sound type."""
+def build_session_frame(sound_type: str, n_neurons: int | None = None, n_subsamples: int = 100) -> pd.DataFrame:
+    """Return one per-session ridge score per target after repeated neuron subsampling."""
+    n_neurons = params.NEURONS_PER_SESSION[sound_type] if n_neurons is None else n_neurons
     records = []
     conditions = [
         (mouse_id, session_id, brain_area, window_name)
         for mouse_id in available_mice(sound_type)
         for session_id in available_sessions(sound_type, mouse_id=mouse_id)
-        for brain_area in get_brain_regions(sound_type)
+        for brain_area in get_plot_brain_regions(sound_type)
         for window_name in WINDOW_ORDER
     ]
     for mouse_id, session_id, brain_area, window_name in tqdm(
@@ -73,29 +61,36 @@ def build_session_frame(sound_type: str, n_neurons: int = 30, n_subsamples: int 
         unit="dataset",
         dynamic_ncols=True,
     ):
-        if sound_type == "speech" and brain_area == "Dorsal auditory area":
-            continue
         dataset = build_dataset(sound_type, window_name, brain_area, mouse_id=mouse_id, session_id=session_id)
         if dataset is None or dataset["X"].shape[1] < n_neurons:
             continue
-        if sound_type == "speech":
-            targets = [("FT", dataset["Y"][:, 0], False), ("VOT", dataset["Y"][:, 1], False)]
-        else:
-            targets = [(sound_type, dataset["Y"], sound_type in {"AM", "PT"})]
+        x_standardized = StandardScaler().fit_transform(dataset["X"])
         rng = np.random.default_rng(42)
-        for target_name, target_values, log_target in targets:
-            session_scores = []
-            for _ in range(n_subsamples):
+        for target_dataset in build_target_datasets(dataset):
+            y = target_dataset["Y"].copy()
+            if bool(target_dataset["log_target"]):
+                y = np.log(y + 1e-8)
+
+            subsample_scores = []
+            for iteration in range(n_subsamples):
                 neuron_idx = rng.choice(dataset["X"].shape[1], size=n_neurons, replace=False)
-                session_scores.append(score_session_dataset(dataset["X"][:, neuron_idx], target_values, log_target))
+                x_sampled = x_standardized[:, neuron_idx]
+                kfold = KFold(n_splits=min(5, len(y)), shuffle=True, random_state=42 + iteration)
+                fold_scores = []
+                for train_index, test_index in kfold.split(x_sampled):
+                    ridge = RidgeCV(alphas=np.asarray(RIDGE_ALPHAS, dtype=float))
+                    ridge.fit(x_sampled[train_index], y[train_index])
+                    y_pred = ridge.predict(x_sampled[test_index])
+                    fold_scores.append(float(r2_score(y[test_index], y_pred)))
+                subsample_scores.append(float(np.mean(fold_scores)))
             records.append(
                 {
                     "Mouse": mouse_id,
                     "Session": session_id,
                     "Brain Area": brain_area,
                     "Window": window_name,
-                    "Target": target_name,
-                    "R2 Test": float(np.mean(session_scores)),
+                    "Target": target_dataset["target_name"],
+                    "R2 Test": float(np.mean(subsample_scores)),
                 }
             )
     return pd.DataFrame(records)
@@ -104,97 +99,18 @@ def build_session_frame(sound_type: str, n_neurons: int = 30, n_subsamples: int 
 def main() -> None:
     """Run per-session ridge boxplot figures."""
     apply_figure_style()
-    for sound_type in tqdm(("speech", "AM", "PT", "naturalSound"), desc="Per-session ridge plots", unit="sound", dynamic_ncols=True):
+    for sound_type in tqdm(list_available_sound_types(), desc="Per-session ridge plots", unit="sound", dynamic_ncols=True):
         print(f"Running per-session ridge plots for {sound_type}...")
         results_df = build_session_frame(sound_type)
         if results_df.empty:
             continue
-
-        brain_regions = [region for region in params.targetSiteNames if region in results_df["Brain Area"].unique()]
-        target_order = [target for target in ["FT", "VOT", sound_type] if target in results_df["Target"].unique()]
-        use_hue = len(target_order) > 1
-        fig, axes = plt.subplots(
-            1,
-            len(WINDOW_ORDER),
-            figsize=(4.4 * len(WINDOW_ORDER), 4.8),
-            squeeze=False,
-            sharey=True,
-            constrained_layout=True,
+        plot_ridge_summary(
+            sound_type,
+            results_df,
+            title=f"{sound_type} per-session ridge $R^2$",
+            filename=f"{sound_type}_ridge_per_session.png",
+            pair_cols=["Mouse", "Session"],
         )
-        fig.suptitle(f"{sound_type} per-session ridge $R^2$", fontsize=16, fontweight="bold")
-        y_min = float(results_df["R2 Test"].min())
-        y_max = float(results_df["R2 Test"].max())
-        max_annotations = len(target_order) * (len(brain_regions) * (len(brain_regions) - 1) // 2)
-        y_step = 0.035 * ((y_max - y_min) if y_max > y_min else 1.0)
-
-        for col_index, window_name in enumerate(WINDOW_ORDER):
-            ax = axes[0, col_index]
-            panel_df = results_df[results_df["Window"] == window_name].copy()
-            if panel_df.empty:
-                ax.axis("off")
-                continue
-
-            box_kwargs = dict(
-                data=panel_df,
-                x="Brain Area",
-                y="R2 Test",
-                order=brain_regions,
-                width=0.5,
-                fliersize=2,
-                linewidth=1,
-                ax=ax,
-            )
-            strip_kwargs = dict(
-                data=panel_df,
-                x="Brain Area",
-                y="R2 Test",
-                order=brain_regions,
-                dodge=use_hue,
-                size=3,
-                alpha=0.35,
-                ax=ax,
-            )
-            if use_hue:
-                box_kwargs["hue"] = "Target"
-                box_kwargs["hue_order"] = target_order
-                strip_kwargs["hue"] = "Target"
-                strip_kwargs["hue_order"] = target_order
-            sns.boxplot(**box_kwargs)
-            sns.stripplot(color="black", **strip_kwargs)
-            if ax.legend_ is not None:
-                ax.legend_.remove()
-
-            stats_df = pairwise_group_tests(
-                panel_df,
-                group_col="Brain Area",
-                value_col="R2 Test",
-                group_order=brain_regions,
-                hue_col="Target" if use_hue else None,
-                hue_order=target_order if use_hue else None,
-                pair_cols=["Mouse", "Session"],
-                test_mode="unpaired",
-            )
-            add_pairwise_annotations(
-                ax,
-                stats_df,
-                centers=box_centers(brain_regions, hue_levels=target_order if use_hue else None),
-                data_max=y_max,
-                data_min=y_min,
-            )
-
-            ax.set_title(window_name.capitalize(), fontweight="bold")
-            ax.set_xlabel("")
-            ax.set_ylabel("$R^2$" if col_index == 0 else "")
-            ax.set_xticklabels([params.short_names.get(region, region) for region in brain_regions], rotation=20)
-            ax.grid(axis="y", linestyle="--", linewidth=0.5, alpha=0.25)
-            ax.set_ylim(y_min - y_step, y_max + y_step * (max_annotations + 2))
-
-        if use_hue:
-            handles, labels = axes[0, 0].get_legend_handles_labels()
-            if handles:
-                fig.legend(handles[: len(target_order)], labels[: len(target_order)], title="Target", loc="upper right", frameon=False)
-        fig.savefig(get_output_dir() / f"{sound_type}_ridge_per_session.png", dpi=300)
-        plt.close(fig)
 
 
 if __name__ == "__main__":
