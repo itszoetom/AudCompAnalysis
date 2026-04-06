@@ -8,7 +8,7 @@ The repo combines:
 
 Raw HDF databases are converted into shared `.npz` firing-rate arrays, and those arrays are reused across methods figures, PCA/UMAP, ridge regression, and discriminability analyses.
 
-## Quick Facts
+## Experimental Design
 
 - Speech subjects: `feat004` to `feat010`
 - Non-speech subjects: `feat014` to `feat019`
