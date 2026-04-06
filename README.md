@@ -67,9 +67,7 @@ Root:
 - `plot_data_info.py`
   combined speech and non-speech neuron-count summaries
 - `plot_single_mouse_psth.py`
-  combined raster-plus-PSTH example figures
-- `plot_single_mouse_spikerate.py`
-  example single-neuron firing-rate figure
+  raster-plus-PSTH example figures for each thesis sound type
 
 `discriminability/`:
 - `discriminability_analysis.py`
@@ -98,10 +96,10 @@ Project documentation:
 
 ## Figure Conventions
 
-- Paper-style figures use serif fonts and `params.color_palette` for region colors.
+- Paper-style figures use serif fonts and consistent region naming across methods.
 - Summary distributions are organized as brain-region comparisons on a shared axis, with one panel per spike window and one figure per sound type.
 - Statistical annotations use Bonferroni-corrected pairwise tests.
-- Ridge summary boxplots use MWU plus Bonferroni correction.
+- Ridge summary boxplots use Wilcoxon when matched samples are available and otherwise MWU, with Bonferroni correction.
 - Linear-SVM discriminability also writes per-condition `C` tuning CSV output and hyperparameter-tuning plots.
 - Natural-sound discriminability also includes within-category vs between-category summary boxplots.
 

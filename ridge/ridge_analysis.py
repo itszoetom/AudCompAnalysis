@@ -41,7 +41,7 @@ available_sessions = funcs.available_sessions
 
 def get_output_dir() -> Path:
     """Return the ridge figure output directory."""
-    return funcs.get_figure_dir("ridge")
+    return funcs.get_figure_dir("decoding/ridge")
 
 
 def build_target_datasets(dataset: dict[str, np.ndarray]) -> list[dict[str, np.ndarray | str | bool]]:
@@ -182,7 +182,10 @@ def run_population_ridge(
 
 def target_order_for_sound(sound_type: str, results_df: pd.DataFrame) -> list[str]:
     """Return the plotted ridge target order for one sound."""
-    return [target for target in ["FT", "VOT", sound_type] if target in results_df["Target"].unique()]
+    canonical_order = ["FT", "VOT", sound_type, "Speech Tuple"]
+    present_targets = results_df["Target"].unique().tolist()
+    ordered = [target for target in canonical_order if target in present_targets]
+    return ordered or present_targets
 
 
 def plot_ridge_summary(
@@ -192,6 +195,8 @@ def plot_ridge_summary(
     title: str,
     filename: str,
     pair_cols: list[str],
+    session_counts: dict[str, int] | None = None,
+    neurons_per_session: int | None = None,
     strip_alpha: float = 0.35,
 ) -> None:
     """Plot one standard ridge region-comparison summary figure."""
@@ -209,7 +214,8 @@ def plot_ridge_summary(
         sharey=True,
         constrained_layout=True,
     )
-    fig.suptitle(title, fontsize=16, fontweight="bold")
+    title_suffix = f" | {neurons_per_session} neurons/session" if neurons_per_session is not None else ""
+    fig.suptitle(f"{title}{title_suffix}", fontsize=16, fontweight="bold")
     y_min = float(results_df["R2 Test"].min())
     y_max = float(results_df["R2 Test"].max())
     max_annotations = len(target_order) * (len(brain_regions) * (len(brain_regions) - 1) // 2)
@@ -221,6 +227,7 @@ def plot_ridge_summary(
         if panel_df.empty:
             ax.axis("off")
             continue
+        region_palette = sns.color_palette("viridis", n_colors=len(brain_regions))
 
         box_kwargs = {
             "data": panel_df,
@@ -242,6 +249,8 @@ def plot_ridge_summary(
             "alpha": strip_alpha,
             "ax": ax,
         }
+        if not use_hue:
+            box_kwargs["palette"] = region_palette
         if use_hue:
             box_kwargs.update({"hue": "Target", "hue_order": target_order})
             strip_kwargs.update({"hue": "Target", "hue_order": target_order})
@@ -271,7 +280,27 @@ def plot_ridge_summary(
         ax.set_title(window_name.capitalize(), fontweight="bold")
         ax.set_xlabel("")
         ax.set_ylabel("$R^2$" if col_index == 0 else "")
-        ax.set_xticklabels([params.short_names.get(region, region) for region in brain_regions], rotation=20)
+        panel_r2 = float(panel_df["R2 Test"].mean())
+        panel_rmse = float(panel_df["RMSE"].mean()) if "RMSE" in panel_df else np.nan
+        panel_alpha = float(panel_df["Best Alpha"].mean()) if "Best Alpha" in panel_df else np.nan
+        summary_text = f"mean $R^2$={panel_r2:.2f}\nmean RMSE={panel_rmse:.2f}\nmean $\\alpha$={panel_alpha:.2g}"
+        ax.text(
+            0.02,
+            0.98,
+            summary_text,
+            transform=ax.transAxes,
+            ha="left",
+            va="top",
+            fontsize=8,
+            bbox={"facecolor": "white", "edgecolor": "0.85", "alpha": 0.9, "pad": 2.5},
+        )
+        x_tick_labels = []
+        for region in brain_regions:
+            label = params.short_names.get(region, region)
+            if session_counts is not None and region in session_counts:
+                label = f"{label}\n(n={session_counts[region]})"
+            x_tick_labels.append(label)
+        ax.set_xticklabels(x_tick_labels, rotation=20)
         ax.grid(axis="y", linestyle="--", linewidth=0.5, alpha=0.25)
         ax.set_ylim(y_min - y_step, y_max + y_step * (max_annotations + 2))
 

@@ -1,4 +1,5 @@
-"""Run the full discriminability analysis and plotting pipeline."""
+"""Run the full discriminability analysis and plotting pipeline
+Takes 39 minutes to run"""
 
 from __future__ import annotations
 

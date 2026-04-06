@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import warnings
 from itertools import combinations
 from pathlib import Path
 from typing import Callable
@@ -11,7 +12,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from sklearn.decomposition import PCA
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.exceptions import ConvergenceWarning
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import LinearSVC
 
@@ -36,16 +39,32 @@ from plot_stats import (  # noqa: E402
 )
 
 SVM_C_VALUES = funcs.DISCRIMINABILITY_SVM_C_VALUES
+VIRIDIS_PAIR_PALETTE = {
+    "Within": plt.cm.viridis(0.25),
+    "Between": plt.cm.viridis(0.8),
+}
 
 
-def get_figure_dir() -> Path:
-    """Return the discriminability output directory."""
-    return funcs.get_figure_dir("discriminability")
+def get_figure_dir(*parts: str) -> Path:
+    """Return a nested discriminability output directory."""
+    return funcs.get_nested_figure_dir("decoding/discriminability", *parts)
+
+
+def figure_output_dir(sound_type: str, method_key: str) -> Path:
+    """Return the figure directory for one sound type and discriminability method."""
+    if method_key == "lda":
+        return get_figure_dir("adish/lda", sound_type)
+    return get_figure_dir(sound_type)
+
+
+def example_output_dir() -> Path:
+    """Return the directory for illustrative discriminability figures."""
+    return get_figure_dir("examples")
 
 
 def get_results_path(method_key: str) -> Path:
     """Return the pairwise-results CSV path for one discriminability method."""
-    return funcs.get_results_path("discriminability", f"{method_key}_pairwise_results.csv")
+    return funcs.get_results_path("decoding/discriminability/adish", f"{method_key}_pairwise_results.csv")
 
 
 def get_tuning_path() -> Path:
@@ -151,20 +170,29 @@ def _shuffled_pair_dataset(resp1: np.ndarray, resp2: np.ndarray, seed: int) -> t
 def _cv_accuracy(model_factory: Callable[[], object], resp1: np.ndarray, resp2: np.ndarray, seed: int) -> float:
     """Return a leave-one-out CV accuracy for one stimulus pair."""
     x_pair, y_pair = _shuffled_pair_dataset(resp1, resp2, seed)
-    return float(
-        funcs.run_loo_classifier_cv(
-            model_factory,
-            x_pair,
-            y_pair,
-            random_state=seed,
-            standardize=False,
-        )["mean_accuracy"]
-    )
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=ConvergenceWarning)
+        return float(
+            funcs.run_loo_classifier_cv(
+                model_factory,
+                x_pair,
+                y_pair,
+                random_state=seed,
+                standardize=False,
+            )["mean_accuracy"]
+        )
 
 
 def svm_accuracy(resp1: np.ndarray, resp2: np.ndarray, seed: int, c_value: float = 1.0) -> dict[str, float]:
     """Return leave-one-out linear-SVM accuracy for one stimulus pair."""
-    return {"Accuracy": _cv_accuracy(lambda: LinearSVC(C=c_value, max_iter=10000), resp1, resp2, seed)}
+    return {
+        "Accuracy": _cv_accuracy(
+            lambda: LinearSVC(C=c_value, max_iter=200000, dual="auto", tol=1e-3),
+            resp1,
+            resp2,
+            seed,
+        )
+    }
 
 
 def lda_accuracy(resp1: np.ndarray, resp2: np.ndarray, seed: int) -> dict[str, float]:
@@ -221,11 +249,11 @@ def tune_linear_svm_c(
 def plot_svm_hyperparameter_tuning(tuning_df: pd.DataFrame) -> None:
     """Plot the linear-SVM `C` tuning traces for each sound type."""
     funcs.apply_figure_style()
-    output_dir = get_figure_dir()
     for sound_type in params.SOUND_ORDER:
         sound_df = tuning_df[tuning_df["Sound Type"] == sound_type].copy()
         if sound_df.empty:
             continue
+        output_dir = figure_output_dir(sound_type, "linearSVM")
         brain_regions = funcs.get_plot_brain_regions(sound_type)
         fig, axes = make_sound_figure(sound_type, width_scale=4.6, height_scale=3.8)
         fig.suptitle(
@@ -257,6 +285,128 @@ def plot_svm_hyperparameter_tuning(tuning_df: pd.DataFrame) -> None:
 
         fig.savefig(output_dir / f"linearSVM_{sound_type}_hyperparameter_tuning.png", dpi=300)
         plt.close(fig)
+
+
+def choose_example_svm_row(results_df: pd.DataFrame) -> pd.Series | None:
+    """Return one representative linear-SVM pair for an example boundary visualization."""
+    preferred_conditions = [
+        ("speech", "Primary auditory area", "onset"),
+        ("speech", "Ventral auditory area", "onset"),
+        ("speech", "Posterior auditory area", "onset"),
+        ("AM", "Primary auditory area", "onset"),
+    ]
+    for sound_type, brain_area, window_name in preferred_conditions:
+        subset = results_df[
+            (results_df["Sound Type"] == sound_type)
+            & (results_df["Brain Area"] == brain_area)
+            & (results_df["Window"] == window_name)
+        ].copy()
+        if not subset.empty:
+            return subset.sort_values("Accuracy", ascending=False).iloc[0]
+    if results_df.empty:
+        return None
+    return results_df.sort_values("Accuracy", ascending=False).iloc[0]
+
+
+def plot_linear_svm_example(results_df: pd.DataFrame) -> None:
+    """Plot one illustrative linear-SVM decision boundary in a 2D PCA projection."""
+    funcs.apply_figure_style()
+    example_row = choose_example_svm_row(results_df)
+    if example_row is None:
+        return
+
+    sound_type = str(example_row["Sound Type"])
+    brain_area = str(example_row["Brain Area"])
+    window_name = str(example_row["Window"])
+    stim_left = str(example_row["Stim 1"])
+    stim_right = str(example_row["Stim 2"])
+    c_value = float(example_row["C"]) if "C" in example_row and not pd.isna(example_row["C"]) else 1.0
+
+    dataset = build_population_analysis_dataset(sound_type, window_name, brain_area)
+    if dataset is None:
+        return
+
+    y_labels = np.asarray(dataset["Y_labels"], dtype=object)
+    keep_mask = np.isin(y_labels, [stim_left, stim_right])
+    if int(np.sum(keep_mask)) < 4:
+        return
+
+    x_pair = np.asarray(dataset["X"][keep_mask], dtype=float)
+    y_pair = np.where(y_labels[keep_mask] == stim_right, 1, 0)
+    projected = PCA(n_components=2).fit_transform(x_pair)
+
+    model = LinearSVC(C=c_value, max_iter=200000, dual="auto", tol=1e-3)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=ConvergenceWarning)
+        model.fit(projected, y_pair)
+
+    x_pad = 1.5 * np.std(projected[:, 0]) if np.std(projected[:, 0]) > 0 else 1.5
+    y_pad = 1.5 * np.std(projected[:, 1]) if np.std(projected[:, 1]) > 0 else 1.5
+    xx, yy = np.meshgrid(
+        np.linspace(projected[:, 0].min() - x_pad, projected[:, 0].max() + x_pad, 300),
+        np.linspace(projected[:, 1].min() - y_pad, projected[:, 1].max() + y_pad, 300),
+    )
+    grid = np.c_[xx.ravel(), yy.ravel()]
+    decision = model.decision_function(grid).reshape(xx.shape)
+    class_colors = [plt.cm.viridis(0.2), plt.cm.viridis(0.8)]
+
+    fig, ax = plt.subplots(figsize=(7.0, 6.0), constrained_layout=True)
+    ax.contourf(xx, yy, decision > 0, levels=1, alpha=0.08, colors=class_colors)
+    visible_margin_levels = [level for level in (-1, 0, 1) if decision.min() <= level <= decision.max()]
+    if visible_margin_levels:
+        style_map = {-1: ("#6c757d", "--", 1.3), 0: ("#111111", "-", 2.0), 1: ("#6c757d", "--", 1.3)}
+        ax.contour(
+            xx,
+            yy,
+            decision,
+            levels=visible_margin_levels,
+            colors=[style_map[level][0] for level in visible_margin_levels],
+            linestyles=[style_map[level][1] for level in visible_margin_levels],
+            linewidths=[style_map[level][2] for level in visible_margin_levels],
+        )
+    ax.scatter(
+        projected[y_pair == 0, 0],
+        projected[y_pair == 0, 1],
+        s=42,
+        color=class_colors[0],
+        edgecolor="white",
+        linewidth=0.5,
+        label=stim_left,
+    )
+    ax.scatter(
+        projected[y_pair == 1, 0],
+        projected[y_pair == 1, 1],
+        s=42,
+        color=class_colors[1],
+        edgecolor="white",
+        linewidth=0.5,
+        label=stim_right,
+    )
+    ax.set_title(
+        f"Example Linear SVM Boundary\n"
+        f"{params.SOUND_DISPLAY_NAMES[sound_type]} | {params.short_names.get(brain_area, brain_area)} | {window_name.capitalize()}",
+        fontweight="bold",
+    )
+    ax.set_xlabel("PC 1 of pairwise response matrix")
+    ax.set_ylabel("PC 2 of pairwise response matrix")
+    ax.legend(frameon=False, loc="upper left")
+    margin_note = ""
+    if -1 not in visible_margin_levels or 1 not in visible_margin_levels:
+        margin_note = "\nOne or both margins fall outside this 2D projection"
+    ax.text(
+        0.02,
+        0.02,
+        f"Solid line: decision boundary\nDashed lines: margins\nC = {c_value:.3g}\n"
+        f"tol = 1e-3 (solver stopping tolerance)\nLOO accuracy = {float(example_row['Accuracy']):.2f}"
+        f"{margin_note}",
+        transform=ax.transAxes,
+        ha="left",
+        va="bottom",
+        fontsize=9,
+        bbox={"facecolor": "white", "edgecolor": "0.85", "alpha": 0.95, "pad": 3},
+    )
+    fig.savefig(example_output_dir() / "linearSVM_example_boundary.png", dpi=300)
+    plt.close(fig)
 
 
 def run_pairwise_analysis(metric_fn: Callable[[np.ndarray, np.ndarray, int], dict[str, float]]) -> pd.DataFrame:
@@ -396,11 +546,11 @@ def plot_heatmaps(
 ) -> None:
     """Create one heatmap grid per sound type."""
     funcs.apply_figure_style()
-    output_dir = get_figure_dir()
     for sound_type in params.SOUND_ORDER:
         sound_df = results_df[results_df["Sound Type"] == sound_type].copy()
         if sound_df.empty:
             continue
+        output_dir = figure_output_dir(sound_type, method_key)
         brain_regions = funcs.get_plot_brain_regions(sound_type)
         labels = funcs.stimulus_order(sound_type, include_speech_syllables=True)
         fig, axes = make_sound_figure(sound_type, width_scale=4.6, height_scale=3.8)
@@ -458,16 +608,17 @@ def plot_region_boxplots(
 ) -> None:
     """Create one 1x3 region-comparison boxplot figure per sound type."""
     funcs.apply_figure_style()
-    output_dir = get_figure_dir()
     for sound_type in params.SOUND_ORDER:
         sound_df = results_df[results_df["Sound Type"] == sound_type].copy()
         if sound_df.empty:
             continue
+        output_dir = figure_output_dir(sound_type, method_key)
         brain_regions = funcs.get_plot_brain_regions(sound_type)
         fig, axes = plt.subplots(1, len(params.WINDOW_ORDER), figsize=(4.6 * len(params.WINDOW_ORDER), 4.8), sharey=True, constrained_layout=True)
         fig.suptitle(f"{params.SOUND_DISPLAY_NAMES[sound_type]} {method_label}", fontsize=16, fontweight="bold")
         max_annotations = len(brain_regions) * (len(brain_regions) - 1) // 2
         y_min, y_max, y_step = score_axis_limits(sound_df[value_col])
+        region_palette = sns.color_palette("viridis", n_colors=len(brain_regions))
 
         for ax, window_name in zip(np.ravel(axes), params.WINDOW_ORDER):
             panel_df = sound_df[sound_df["Window"] == window_name].copy()
@@ -479,6 +630,7 @@ def plot_region_boxplots(
                 width=0.5,
                 fliersize=2,
                 linewidth=1,
+                palette=region_palette,
                 ax=ax,
             )
             sns.stripplot(
@@ -529,7 +681,7 @@ def plot_natural_within_between_boxplots(
 ) -> None:
     """Create the natural-sound within-vs-between boxplot figure."""
     funcs.apply_figure_style()
-    output_dir = get_figure_dir()
+    output_dir = figure_output_dir("naturalSound", method_key)
     natural_df = results_df[results_df["Sound Type"] == "naturalSound"].dropna(subset=["Pair Type"]).copy()
     if natural_df.empty:
         return
@@ -554,7 +706,7 @@ def plot_natural_within_between_boxplots(
             order=brain_regions,
             hue_order=hue_order,
             width=0.5,
-            palette={"Within": "skyblue", "Between": "salmon"},
+            palette=VIRIDIS_PAIR_PALETTE,
             showfliers=False,
             linewidth=1,
             ax=ax,
@@ -566,7 +718,7 @@ def plot_natural_within_between_boxplots(
             hue="Pair Type",
             order=brain_regions,
             hue_order=hue_order,
-            palette={"Within": "skyblue", "Between": "salmon"},
+            palette=VIRIDIS_PAIR_PALETTE,
             dodge=True,
             alpha=0.35,
             size=3,

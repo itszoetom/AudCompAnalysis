@@ -2,10 +2,6 @@
 
 from __future__ import annotations
 
-import os
-
-from matplotlib import cm
-
 # --- Shared dataset metadata ---
 SOUND_ORDER = ("speech", "AM", "PT", "naturalSound")
 SOUND_FILE_KEYS = {
@@ -98,18 +94,10 @@ dbSavePath = "/Users/zoetomlinson/Desktop/MurrayLab/AudPopAnalysis/data/"
 # --- Speech dataset ---
 SPEECH_STUDY_NAME = "2024popanalysis"
 SPEECH_SUBJECTS = ["feat004", "feat005", "feat006", "feat007", "feat008", "feat009", "feat010"]
-databaseDir = os.path.join(DATABASE_PATH, SPEECH_STUDY_NAME)
-fullPath_Speech = os.path.join(databaseDir, "celldb_2024popanalysis.h5")
-leastCellsArea = 10000
+fullPath_Speech = f"{DATABASE_PATH}{SPEECH_STUDY_NAME}/celldb_2024popanalysis.h5"
 speech_time_range = [0.0, 0.7]
 speech_allPeriods = [[-0.5, 0], [0, 0.2], [0.2, 0.5], [0.5, 0.7]]
 SPEECH_REPEATS_PER_TOKEN = 20
-SPEECH_SYLLABLE_MAP = {
-    (0, 0): "/ba/",
-    (100, 0): "/da/",
-    (0, 100): "/pa/",
-    (100, 100): "/ta/",
-}
 
 unique_labels = [
     (0, 0),
@@ -131,16 +119,11 @@ SPEECH_SYLLABLES = {
     (0, 100): "pa",
     (100, 100): "ta",
 }
-SPEECH_DISPLAY_LABELS = {label: str(label) for label in unique_labels}
 
 # --- Non-speech dataset ---
-STUDY_NAME = "2025acpop"
-SUBJECTS = ["feat014", "feat015", "feat016", "feat017", "feat018", "feat019"]
-dbPath = os.path.join(DATABASE_PATH, STUDY_NAME)
-fullPath = os.path.join(dbPath, "celldb_2025acpop_coords.h5")
+fullPath = f"{DATABASE_PATH}2025acpop/celldb_2025acpop_coords.h5"
 
 NAT_SOUND_CATEGORIES = ["Frogs", "Crickets", "Streamside", "Bubbling", "Bees"]
-SOUND_CATEGORIES = NAT_SOUND_CATEGORIES
 NAT_SOUND_LABELS = [f"{category} {index}" for category in NAT_SOUND_CATEGORIES for index in range(1, 5)]
 NAT_SOUND_LABEL_MAP = dict(enumerate(NAT_SOUND_LABELS))
 naturalStimVar = "soundID"
@@ -179,68 +162,9 @@ STIMULUS_BUILD_CONFIGS = {
     },
 }
 
-spike_windows = {
-    "pt - onset": [0.0, 0.03],
-    "pt - sustained": [0.03, 0.1],
-    "pt - offset": [0.1, 0.13],
-    "am - onset": [0.0, 0.2],
-    "am - sustained": [0.2, 0.5],
-    "am - offset": [0.5, 0.7],
-    "speech - onset": [0.0, 0.2],
-    "speech - sustained": [0.2, 0.5],
-    "speech - offset": [0.5, 0.7],
-    "naturalSound - onset": [0.0, 0.5],
-    "naturalSound - sustained": [1, 4],
-    "naturalSound - offset": [4, 4.5],
-}
-
-# --- Visualization settings ---
-color_palette = {
-    "Primary auditory area - PT": cm.winter(1),
-    "Primary auditory area - AM": cm.winter(0.66),
-    "Primary auditory area - speech": cm.winter(0.33),
-    "Dorsal auditory area - PT": cm.magma(1),
-    "Dorsal auditory area - AM": cm.magma(0.66),
-    "Dorsal auditory area - speech": cm.magma(0.33),
-    "Ventral auditory area - PT": cm.summer(1),
-    "Ventral auditory area - AM": cm.summer(0.66),
-    "Ventral auditory area - speech": cm.summer(0.33),
-    "Posterior auditory area - PT": cm.autumn(1),
-    "Posterior auditory area - AM": cm.autumn(0.66),
-    "Posterior auditory area - speech": cm.autumn(0.33),
-}
-
 short_names = {
     "Primary auditory area": "Primary",
     "Dorsal auditory area": "Dorsal",
     "Ventral auditory area": "Ventral",
     "Posterior auditory area": "Posterior",
 }
-
-
-BEHAVIOR_PATH = '/Volumes/NardociData/behavior'
-
-EPHYS_PATH = '/data/ephys'  # For Intan data
-EPHYS_NEUROPIX_PATH = '/Volumes/NardociData/ephys/neuropixels/' # For Neuropixels data
-
-HISTOLOGY_PATH = '/Volumes/NardociData/jarashare/histology'
-
-FIGURES_DATA_PATH = '/Volumes/NardociData/jarahubdata/figuresdata/2025acpop/' # Intermediate data for subfigures
-
-SAVE_PATH = "/Users/zoetomlinson/Desktop/MurrayLab/neuronalDataResearch/Figures/"
-
-INFOREC_PATH = '/Users/zoetomlinson/Desktop/MurrayLab/jarainfo/inforecordings/'
-
-INFOHIST_PATH = '/Users/zoetomlinson/Desktop/MurrayLab/jarainfo/infohistology/'
-
-DATABASE_PATH = '/Volumes/NardociData/jarahubdata/figuresdata/'
-
-ALLEN_ATLAS_PATH = '/Volumes/NardociData/atlas/AllenCCF_25/'
-
-ALLEN_SDK_CACHE_PATH = '/var/tmp/allensdk_cache'
-
-TEMP_OUTPUT_PATH = '/tmp/'
-
-SOUNDS_PATH = '/mnt/jarahubdata/jarasounds/'
-
-

@@ -40,7 +40,7 @@ DEFAULT_SCATTER_KWARGS = {"s": 24, "alpha": 0.85, "linewidths": 0}
 
 def get_figure_dir() -> Path:
     """Return the PCA figure output directory."""
-    return funcs.get_figure_dir("pca")
+    return funcs.get_figure_dir("encoding")
 
 
 def panel_conditions(sound_type: str) -> list[tuple[int, str, int, str]]:

@@ -11,7 +11,7 @@ Population-based pairwise stimulus discriminability analyses for the thesis data
 - Windows: `onset`, `sustained`, `offset`
 - Speech stimuli: all `12` FT/VOT identities, with the four syllable endpoints labeled
 - Speech regions: `Primary`, `Ventral`, `Posterior` only; `Dorsal` excluded because of low neuron count
-- Linear SVM tunes `C` over `np.logspace(-2, 4, 20)` separately for each sound, brain region, and spike window
+- Linear SVM tunes `C` over an expanded log-spaced grid from `10^-5` to `10^4`, with extra density at the low-`C` end, separately for each sound, brain region, and spike window
 
 ## Outputs
 Each method writes one top-level CSV in `figSavePath/discriminability/`:
@@ -28,6 +28,16 @@ Each plotting script creates:
 - heatmap grids for every sound type
 - region-comparison boxplots for every sound type, one panel per spike window
 - natural-sound within-vs-between category boxplots
+- thesis-facing summary boxplots use viridis-based palettes for consistency across figures
+
+Figure layout:
+- thesis-facing Pearson and linear-SVM figures are written into sound-specific folders:
+  - `figSavePath/discriminability/speech/`
+  - `figSavePath/discriminability/AM/`
+  - `figSavePath/discriminability/PT/`
+  - `figSavePath/discriminability/naturalSound/`
+- omitted LDA figures are written separately under:
+  - `figSavePath/discriminability/omitted/lda/<sound>/`
 
 Statistical tests:
 - brain-region comparisons within each spike window: MWU

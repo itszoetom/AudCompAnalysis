@@ -70,6 +70,12 @@ def speech_window_rates(ensemble: ephyscore.CellEnsemble, window: list[float]) -
     return spike_counts.sum(axis=2) / (window[1] - window[0])
 
 
+def speech_analysis_window(window_name: str) -> list[float]:
+    """Return the speech onset/sustained/offset window from the shared period definition."""
+    period_index = WINDOW_NAMES.index(window_name) + 1
+    return params.speech_allPeriods[period_index]
+
+
 def build_speech_arrays() -> None:
     """Build and save session-concatenated firing-rate arrays for speech."""
     speech_db = simplify_recording_sites(celldatabase.load_hdf(params.fullPath_Speech))
@@ -101,7 +107,7 @@ def build_speech_arrays() -> None:
                 print(f"Processing speech session {session_id}")
 
                 for window_name in WINDOW_NAMES:
-                    window = params.spike_windows[f"speech - {window_name}"]
+                    window = speech_analysis_window(window_name)
                     firing_rates = mean_center_trials(speech_window_rates(ensemble, window))[:, trial_indices]
                     n_neurons = firing_rates.shape[0]
                     session_store[window_name]["X"].append(firing_rates)

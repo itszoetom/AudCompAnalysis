@@ -70,7 +70,7 @@ def save_feature_figure(feature_name: str, feature_index: int) -> None:
     if last_scatter is not None:
         colorbar = fig.colorbar(last_scatter, ax=fig.axes, location="bottom", fraction=0.03, pad=0.04)
         colorbar.set_label(f"{feature_name} value", fontsize=12)
-    fig.savefig(get_figure_dir() / f"speech_pca_{feature_name.lower()}.png", dpi=300)
+    fig.savefig(get_figure_dir() / "pca/speech_separate" / f"speech_pca_{feature_name.lower()}.png", dpi=300)
     plt.close(fig)
 
 

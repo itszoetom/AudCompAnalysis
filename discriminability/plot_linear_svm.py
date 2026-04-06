@@ -12,6 +12,7 @@ if str(ROOT) not in sys.path:
 from discriminability.discriminability_analysis import (  # noqa: E402
     load_method_results,
     plot_heatmaps,
+    plot_linear_svm_example,
     plot_natural_within_between_boxplots,
     plot_region_boxplots,
 )
@@ -48,6 +49,7 @@ def main() -> None:
         value_col=VALUE_COL,
         ylabel=YLABEL,
     )
+    plot_linear_svm_example(results_df)
 
 
 if __name__ == "__main__":

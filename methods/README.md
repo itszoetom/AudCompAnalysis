@@ -10,9 +10,7 @@ Descriptive methods figures for dataset summaries and example single-cell respon
 - `plot_data_info.py`
   combined non-speech and speech session, mouse, and total-neuron summary figures with per-session cutoff lines
 - `plot_single_mouse_psth.py`
-  canonical example single-cell figure script with raster and PSTH panels side by side across speech and non-speech datasets using a shared viridis stimulus colormap
-- `plot_single_mouse_spikerate.py`
-  one example single-neuron firing-rate figure with raster, PSTH, and onset/sustained/offset rate bars
+  canonical example single-cell figure script that now writes one clean raster-plus-PSTH figure per thesis sound type
 
 ## Outputs
 - figures are written to `figSavePath/methods/`
@@ -20,5 +18,5 @@ Descriptive methods figures for dataset summaries and example single-cell respon
 - long-running scripts include `tqdm` progress bars and stage prints where useful
 
 ## Notes
-- the canonical combined raster-plus-PSTH script includes natural sounds, AM, pure tones, FT, and VOT example panels
+- the canonical raster-plus-PSTH script writes separate speech, pure-tone, AM, and natural-sound example figures
 - these scripts require local `jaratoolbox` and database access
