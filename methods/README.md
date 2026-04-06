@@ -1,22 +1,24 @@
 # Methods Figures
 
-Descriptive methods figures for dataset summaries and example single-cell responses.
+Descriptive figures for dataset summaries and example single-cell responses.
 
-## Canonical entry points
+## Run
+
 - `python methods/run_all.py`
-  runs the full methods figure set
 
-## Individual figure scripts
+## Main Scripts
+
 - `plot_data_info.py`
-  combined non-speech and speech session, mouse, and total-neuron summary figures with per-session cutoff lines
+  session, mouse, and neuron-count summary figures
 - `plot_single_mouse_psth.py`
-  canonical example single-cell figure script that now writes one clean raster-plus-PSTH figure per thesis sound type
+  example raster-plus-PSTH figures for speech, PT, AM, and natural sounds
 
-## Outputs
+## Output
+
 - figures are written to `figSavePath/methods/`
-- these are descriptive figures and do not add inferential statistics
-- long-running scripts include `tqdm` progress bars and stage prints where useful
+- these figures are descriptive and do not run inferential statistics
 
 ## Notes
-- the canonical raster-plus-PSTH script writes separate speech, pure-tone, AM, and natural-sound example figures
-- these scripts require local `jaratoolbox` and database access
+
+- the PSTH script writes separate figures for each thesis sound type
+- local `jaratoolbox` and database access are required

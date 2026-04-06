@@ -2,28 +2,28 @@
 
 Population PCA and UMAP figures for the thesis datasets.
 
-## Canonical entry points
+## Run
+
 - `python pca/run_all.py`
-  runs the full PCA figure set
 
-## Individual figure scripts
+## Main Scripts
+
 - `plot_pca_population.py`
-  population PCA scatter plots and scree plots for every sound type
-- `plot_pca_population_averages.py`
-  trial-averaged PCA scatter plots
+  PCA scatter and scree plots
+- `plot_pca_population_avgs.py`
+  trial-averaged PCA plots
 - `plot_pca_speech.py`
-  speech PCA figures colored separately by FT and VOT
+  speech PCA plots colored by FT and VOT
 - `plot_umap_population.py`
-  population UMAP figures
-
-## Shared helpers
+  UMAP plots
 - `pca_analysis.py`
-  loading, fixed-neuron subsampling, PCA helpers, averaging helpers, and figure styling
+  shared PCA/UMAP helpers
 
-## Outputs
+## Output
+
 - figures are written to `figSavePath/pca/`
-- population figures are organized by sound type, brain region, and spike window
+- panels are organized by sound type, brain region, and spike window
 
 ## Notes
-- speech figure panels exclude dorsal auditory area because of low neuron count
-- long-running scripts include `tqdm` progress bars and stage prints
+
+- speech population-style figures exclude dorsal auditory area

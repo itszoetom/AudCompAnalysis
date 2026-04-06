@@ -1,60 +1,39 @@
 # Discriminability
 
-Population-based pairwise stimulus discriminability analyses for the thesis datasets.
+Population-based pairwise stimulus discriminability analyses.
 
-## Design
-- Cross-validation: leave-one-out population CV for `linearSVM` and `lda`
-- Population neuron counts:
-  - `speech`: `99`
-  - `AM`, `PT`, `naturalSound`: `278`
-- Inputs are z-scored once per population dataset before pairwise decoding
-- Windows: `onset`, `sustained`, `offset`
-- Speech stimuli: all `12` FT/VOT identities, with the four syllable endpoints labeled
-- Speech regions: `Primary`, `Ventral`, `Posterior` only; `Dorsal` excluded because of low neuron count
-- Linear SVM tunes `C` over an expanded log-spaced grid from `10^-5` to `10^4`, with extra density at the low-`C` end, separately for each sound, brain region, and spike window
+## Run
 
-## Outputs
-Each method writes one top-level CSV in `figSavePath/discriminability/`:
-- `<method>_pairwise_results.csv`:
-  one row per sound, brain region, spike window, and stimulus pair
-
-Linear SVM also writes:
-- `linearSVM_hyperparameter_tuning.csv`:
-  one row per sound, brain region, spike window, and tested `C`
-- `linearSVM_<sound>_hyperparameter_tuning.png`:
-  one tuning figure per sound type, with one panel per brain region and spike window
-
-Each plotting script creates:
-- heatmap grids for every sound type
-- region-comparison boxplots for every sound type, one panel per spike window
-- natural-sound within-vs-between category boxplots
-- thesis-facing summary boxplots use viridis-based palettes for consistency across figures
-
-Figure layout:
-- thesis-facing Pearson and linear-SVM figures are written into sound-specific folders:
-  - `figSavePath/discriminability/speech/`
-  - `figSavePath/discriminability/AM/`
-  - `figSavePath/discriminability/PT/`
-  - `figSavePath/discriminability/naturalSound/`
-- omitted LDA figures are written separately under:
-  - `figSavePath/discriminability/omitted/lda/<sound>/`
-
-Statistical tests:
-- brain-region comparisons within each spike window: MWU
-- natural within-vs-between comparisons within each brain region: MWU
-- all p-values Bonferroni-corrected
-
-## Structure
-- `discriminability_analysis.py`
-  shared data loading, population dataset building, pairwise analysis, generic plotting, and stats helpers
-- `plot_pearson.py`
-- `plot_linear_svm.py`
-- `plot_lda.py`
-- `run_all.py`
-
-## Canonical entry points
 - `python discriminability/run_all.py`
-  runs the full discriminability pipeline
+
+## Core Design
+
+- equal-neuron population datasets:
+  - speech: `99`
+  - non-speech: `278`
+- inputs are z-scored before analysis
+- linear SVM and LDA use leave-one-out CV
+- linear SVM tunes `C` over `np.logspace(-5, 4, 20)`
+- boxplot comparisons use Mann-Whitney U with Bonferroni correction
+
+## Main Scripts
+
+- `plot_pearson.py`
+  Pearson heatmaps and boxplots
+- `plot_linear_svm.py`
+  linear-SVM heatmaps, boxplots, tuning plots, and one example boundary figure
+- `plot_lda.py`
+  LDA figures
+- `discriminability_analysis.py`
+  shared analysis and plotting helpers
+
+## Output
+
+- thesis-facing Pearson and linear-SVM figures are written into sound-specific folders
+- LDA figures are written separately under an omitted folder
+- top-level CSVs store pairwise results and SVM tuning results
 
 ## Notes
-- long-running analyses include `tqdm` progress bars and stage-level print statements
+
+- natural sounds also include within- vs. between-category boxplots
+- thesis-facing summary figures use viridis-based palettes
