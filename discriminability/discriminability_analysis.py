@@ -36,6 +36,12 @@ from shared.plot_stats import (  # noqa: E402
 )
 
 SVM_C_VALUES = funcs.DISCRIMINABILITY_SVM_C_VALUES
+
+# Font size hierarchy matching project-wide style
+FONTSIZE_SUPTITLE = 38
+FONTSIZE_TITLE = 32
+FONTSIZE_LABEL = 28
+
 VIRIDIS_PAIR_PALETTE = {
     "Within": plt.cm.viridis(0.25),
     "Between": plt.cm.viridis(0.8),
@@ -252,10 +258,10 @@ def plot_svm_hyperparameter_tuning(tuning_df: pd.DataFrame) -> None:
             continue
         output_dir = figure_output_dir(sound_type, "linearSVM")
         brain_regions = funcs.get_plot_brain_regions(sound_type)
-        fig, axes = make_sound_figure(sound_type, width_scale=4.6, height_scale=3.8)
+        fig, axes = make_sound_figure(sound_type, width_scale=5.5, height_scale=5.2)
         fig.suptitle(
-            f"{params.SOUND_DISPLAY_NAMES[sound_type]} Linear SVM Hyperparameter Tuning",
-            fontsize=26,
+            f"Linear SVM Hyperparameter Tuning for {params.SOUND_DISPLAY_NAMES[sound_type]}",
+            fontsize=FONTSIZE_SUPTITLE,
             fontweight="bold",
         )
         for row_index, brain_area in enumerate(brain_regions):
@@ -268,17 +274,30 @@ def plot_svm_hyperparameter_tuning(tuning_df: pd.DataFrame) -> None:
                     ax.axis("off")
                     continue
 
-                ax.plot(panel_df["C"], panel_df["Mean Accuracy"], marker="o", linewidth=1.5)
+                ax.plot(panel_df["C"], panel_df["Mean Accuracy"],
+                        marker="o", markersize=7, linewidth=2.0,
+                        color=plt.cm.viridis(0.45))
                 best_row = panel_df.loc[panel_df["Mean Accuracy"].idxmax()]
-                ax.scatter([best_row["C"]], [best_row["Mean Accuracy"]], color="red", s=20, zorder=3)
+                ax.scatter([best_row["C"]], [best_row["Mean Accuracy"]],
+                           color=plt.cm.viridis(0.85), s=80, zorder=4,
+                           edgecolor="white", linewidth=1.2)
+                ax.annotate(
+                    f"C = {best_row['C']:.2g}",
+                    xy=(best_row["C"], best_row["Mean Accuracy"]),
+                    xytext=(6, 6), textcoords="offset points",
+                    fontsize=FONTSIZE_LABEL, color=plt.cm.viridis(0.85),
+                )
                 ax.set_xscale("log")
                 ax.set_title(
-                    f"{params.short_names.get(brain_area, brain_area)}\n{window_name.capitalize()}",
+                    f"{params.short_names.get(brain_area, brain_area)} - {window_name.capitalize()}",
+                    fontsize=FONTSIZE_TITLE,
                     fontweight="bold",
                 )
-                ax.set_xlabel("C")
-                ax.set_ylabel("Mean Accuracy")
+                ax.set_xlabel("Regularization Parameter C", fontsize=FONTSIZE_LABEL)
+                ax.set_ylabel("Mean Pairwise Accuracy", fontsize=FONTSIZE_LABEL)
+                ax.tick_params(labelsize=FONTSIZE_LABEL)
                 ax.grid(axis="y", linestyle="--", linewidth=0.5, alpha=0.35)
+                sns.despine(ax=ax)
 
         fig.savefig(output_dir / f"linearSVM_{sound_type}_hyperparameter_tuning.png", dpi=300)
         plt.close(fig)
@@ -347,7 +366,7 @@ def plot_linear_svm_example(results_df: pd.DataFrame) -> None:
     decision = model.decision_function(grid).reshape(xx.shape)
     class_colors = [plt.cm.viridis(0.2), plt.cm.viridis(0.8)]
 
-    fig, ax = plt.subplots(figsize=(7.2, 6.2), constrained_layout=True)
+    fig, ax = plt.subplots(figsize=(9.0, 7.2), constrained_layout=True)
     ax.contourf(xx, yy, decision > 0, levels=1, alpha=0.08, colors=class_colors)
     visible_margin_levels = [level for level in (-1, 0, 1) if decision.min() <= level <= decision.max()]
     if visible_margin_levels:
@@ -379,28 +398,31 @@ def plot_linear_svm_example(results_df: pd.DataFrame) -> None:
         linewidth=0.5,
         label=stim_right,
     )
+    short_area = params.short_names.get(brain_area, brain_area)
     ax.set_title(
-        f"Example Linear SVM Boundary\n"
-        f"{params.SOUND_DISPLAY_NAMES[sound_type]} | {params.short_names.get(brain_area, brain_area)} | {window_name.capitalize()}",
+        f"Linear SVM Decision Boundary — {params.SOUND_DISPLAY_NAMES[sound_type]}, {short_area}, {window_name.capitalize()}",
+        fontsize=FONTSIZE_TITLE,
         fontweight="bold",
     )
-    ax.set_xlabel("PC 1 of pairwise response matrix")
-    ax.set_ylabel("PC 2 of pairwise response matrix")
-    ax.legend(frameon=False, loc="upper left")
+    ax.set_xlabel("PC 1 of Pairwise Response Matrix", fontsize=FONTSIZE_LABEL)
+    ax.set_ylabel("PC 2 of Pairwise Response Matrix", fontsize=FONTSIZE_LABEL)
+    ax.tick_params(labelsize=FONTSIZE_LABEL)
+    ax.legend(frameon=True, loc="upper left", fontsize=18, title_fontsize=18)
+    sns.despine(ax=ax)
     margin_note = ""
     if -1 not in visible_margin_levels or 1 not in visible_margin_levels:
         margin_note = "\nOne or both margins fall outside this 2D projection"
     ax.text(
         0.02,
         0.02,
-        f"Solid line: decision boundary\nDashed lines: margins\nC = {c_value:.3g}\n"
-        f"tol = 1e-3 (solver stopping tolerance)\nLOO accuracy = {float(example_row['Accuracy']):.2f}"
+        f"Solid line: decision boundary  |  Dashed: margins\n"
+        f"C = {c_value:.3g}   LOO accuracy = {float(example_row['Accuracy']):.2f}"
         f"{margin_note}",
         transform=ax.transAxes,
         ha="left",
         va="bottom",
-        fontsize=22,
-        bbox={"facecolor": "white", "edgecolor": "0.85", "alpha": 0.95, "pad": 3},
+        fontsize=18,
+        bbox={"facecolor": "white", "edgecolor": "0.75", "alpha": 0.92, "pad": 4, "boxstyle": "round,pad=0.4"},
     )
     fig.savefig(example_output_dir() / "linearSVM_example_boundary.png", dpi=300)
     plt.close(fig)
@@ -523,10 +545,12 @@ def format_boxplot_axis(
     y_max: float,
 ) -> None:
     """Apply shared axis formatting for discriminability boxplots."""
-    ax.set_title(window_name.capitalize(), fontweight="bold")
+    ax.set_title(window_name.capitalize(), fontsize=FONTSIZE_TITLE, fontweight="bold")
     ax.set_xlabel("")
-    ax.set_ylabel(ylabel if show_ylabel else "")
-    ax.set_xticklabels([params.short_names.get(region, region) for region in brain_regions], rotation=20)
+    ax.set_ylabel(ylabel if show_ylabel else "", fontsize=FONTSIZE_LABEL)
+    ax.set_xticks(range(len(brain_regions)))
+    ax.set_xticklabels([params.short_names.get(region, region) for region in brain_regions], rotation=20, fontsize=FONTSIZE_LABEL)
+    ax.tick_params(axis="y", labelsize=FONTSIZE_LABEL)
     ax.grid(axis="y", linestyle="--", linewidth=0.5, alpha=0.25)
     ax.set_ylim(y_min, y_max)
 
@@ -550,10 +574,10 @@ def plot_heatmaps(
         output_dir = figure_output_dir(sound_type, method_key)
         brain_regions = funcs.get_plot_brain_regions(sound_type)
         labels = funcs.stimulus_order(sound_type, include_speech_syllables=True)
-        fig, axes = make_sound_figure(sound_type, width_scale=4.6, height_scale=3.8)
+        fig, axes = make_sound_figure(sound_type, width_scale=5.5, height_scale=5.2)
         fig.suptitle(
-            f"{params.SOUND_DISPLAY_NAMES[sound_type]} {method_label} heatmaps",
-            fontsize=26,
+            f"Pairwise {method_label} Heatmaps — {params.SOUND_DISPLAY_NAMES[sound_type]}",
+            fontsize=FONTSIZE_SUPTITLE,
             fontweight="bold",
         )
         colorbar_source = None
@@ -580,18 +604,28 @@ def plot_heatmaps(
                 if colorbar_source is None:
                     colorbar_source = heatmap.collections[0]
                 ax.set_title(
-                    f"{params.short_names.get(brain_area, brain_area)}\n{window_name.capitalize()}",
+                    f"{params.short_names.get(brain_area, brain_area)} - {window_name.capitalize()}",
+                    fontsize=FONTSIZE_TITLE,
                     fontweight="bold",
                 )
                 ax.set_xlabel("")
                 ax.set_ylabel("")
-                ax.tick_params(axis="x", rotation=60, labelsize=22)
-                ax.tick_params(axis="y", rotation=0, labelsize=22)
+                # Every other x-axis label at 45° for all sound types; strip Hz for AM/PT
+                x_lbls = [t.get_text() for t in ax.get_xticklabels()]
+                y_lbls = [t.get_text() for t in ax.get_yticklabels()]
+                if sound_type in {"AM", "PT"}:
+                    x_lbls = [lbl.replace(" Hz", "") for lbl in x_lbls]
+                    y_lbls = [lbl.replace(" Hz", "") for lbl in y_lbls]
+                    ax.set_yticklabels(y_lbls, rotation=0, fontsize=FONTSIZE_LABEL)
+                else:
+                    ax.tick_params(axis="y", rotation=0, labelsize=FONTSIZE_LABEL)
+                x_lbls = [lbl if i % 2 == 0 else "" for i, lbl in enumerate(x_lbls)]
+                ax.set_xticklabels(x_lbls, rotation=45, ha="right", fontsize=FONTSIZE_LABEL)
 
         if colorbar_source is not None:
             colorbar = fig.colorbar(colorbar_source, ax=axes, location="right", fraction=0.03, pad=0.02)
-            colorbar.set_label(method_label, fontsize=22)
-            colorbar.ax.tick_params(labelsize=22)
+            colorbar.set_label(method_label, fontsize=FONTSIZE_LABEL)
+            colorbar.ax.tick_params(labelsize=FONTSIZE_LABEL)
         fig.savefig(output_dir / f"{method_key}_{sound_type}_heatmaps.png", dpi=300)
         plt.close(fig)
 
@@ -612,8 +646,8 @@ def plot_region_boxplots(
             continue
         output_dir = figure_output_dir(sound_type, method_key)
         brain_regions = funcs.get_plot_brain_regions(sound_type)
-        fig, axes = plt.subplots(1, len(params.WINDOW_ORDER), figsize=(3.8 * len(params.WINDOW_ORDER), 4.1), sharey=True, constrained_layout=True)
-        fig.suptitle(f"{params.SOUND_DISPLAY_NAMES[sound_type]} {method_label}", fontsize=26, fontweight="bold")
+        fig, axes = plt.subplots(1, len(params.WINDOW_ORDER), figsize=(5.5 * len(params.WINDOW_ORDER), 5.2), sharey=True, constrained_layout=True)
+        fig.suptitle(f"Pairwise {method_label} — {params.SOUND_DISPLAY_NAMES[sound_type]}", fontsize=FONTSIZE_SUPTITLE, fontweight="bold")
         max_annotations = len(brain_regions) * (len(brain_regions) - 1) // 2
         y_min, y_max, y_step = score_axis_limits(sound_df[value_col])
         region_palette = sns.color_palette("viridis", n_colors=len(brain_regions))
@@ -624,11 +658,14 @@ def plot_region_boxplots(
                 data=panel_df,
                 x="Brain Area",
                 y=value_col,
+                hue="Brain Area",
                 order=brain_regions,
+                hue_order=brain_regions,
                 width=0.5,
                 fliersize=2,
                 linewidth=1,
                 palette=region_palette,
+                legend=False,
                 ax=ax,
             )
             sns.stripplot(
@@ -686,10 +723,10 @@ def plot_natural_within_between_boxplots(
 
     brain_regions = funcs.get_plot_brain_regions("naturalSound")
     hue_order = ["Within", "Between"]
-    fig, axes = plt.subplots(1, len(params.WINDOW_ORDER), figsize=(3.9 * len(params.WINDOW_ORDER), 4.1), sharey=True, constrained_layout=True)
+    fig, axes = plt.subplots(1, len(params.WINDOW_ORDER), figsize=(5.5 * len(params.WINDOW_ORDER), 5.2), sharey=True, constrained_layout=True)
     fig.suptitle(
-        f"Natural Sounds {method_label} within vs between category",
-        fontsize=26,
+        f"Natural Sounds {method_label} — Within vs. Between Category",
+        fontsize=FONTSIZE_SUPTITLE,
         fontweight="bold",
     )
     y_min, y_max, y_step = score_axis_limits(natural_df[value_col])
@@ -754,6 +791,14 @@ def plot_natural_within_between_boxplots(
 
     handles, labels = axes[0].get_legend_handles_labels()
     if handles:
-        fig.legend(handles[: len(hue_order)], labels[: len(hue_order)], title="Pair Type", loc="upper right", frameon=False)
+        fig.legend(
+            handles[: len(hue_order)],
+            labels[: len(hue_order)],
+            title="Pair Type",
+            loc="outside right center",
+            frameon=True,
+            fontsize=FONTSIZE_LABEL,
+            title_fontsize=FONTSIZE_LABEL,
+        )
     fig.savefig(output_dir / f"{method_key}_naturalSound_within_between_boxplots.png", dpi=300)
     plt.close(fig)

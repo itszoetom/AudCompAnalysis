@@ -21,7 +21,11 @@ except ImportError:  # pragma: no cover
 
 try:
     from .ridge_analysis import (
+        FONTSIZE_LABEL,
+        FONTSIZE_SUPTITLE,
+        FONTSIZE_TITLE,
         RIDGE_ALPHAS,
+        SOUND_DISPLAY_NAMES,
         apply_figure_style,
         available_mice,
         available_sessions,
@@ -35,7 +39,11 @@ try:
     )
 except ImportError:
     from ridge_analysis import (
+        FONTSIZE_LABEL,
+        FONTSIZE_SUPTITLE,
+        FONTSIZE_TITLE,
         RIDGE_ALPHAS,
+        SOUND_DISPLAY_NAMES,
         apply_figure_style,
         available_mice,
         available_sessions,
@@ -192,15 +200,16 @@ def plot_ridge_alpha_summary(
         return
 
     brain_regions = get_plot_brain_regions(sound_type)
+    display_name = SOUND_DISPLAY_NAMES.get(sound_type, sound_type)
     fig, axes = plt.subplots(
         1,
         len(WINDOW_ORDER),
-        figsize=(3.8 * len(WINDOW_ORDER), 4.2),
+        figsize=(5.5 * len(WINDOW_ORDER), 5.2),
         squeeze=False,
         sharey=True,
         constrained_layout=True,
     )
-    fig.suptitle(f"{sound_type} per-session ridge selected alpha", fontsize=26, fontweight="bold")
+    fig.suptitle(f"Regularization Parameter Selection — {display_name}", fontsize=FONTSIZE_SUPTITLE, fontweight="bold")
     region_palette = sns.color_palette("viridis", n_colors=len(brain_regions))
 
     for col_index, window_name in enumerate(WINDOW_ORDER):
@@ -214,11 +223,14 @@ def plot_ridge_alpha_summary(
             data=panel_df,
             x="Brain Area",
             y="Best Alpha",
+            hue="Brain Area",
             order=brain_regions,
+            hue_order=brain_regions,
             width=0.5,
             fliersize=2,
             linewidth=1,
             palette=region_palette,
+            legend=False,
             ax=ax,
         )
         sns.stripplot(
@@ -232,17 +244,21 @@ def plot_ridge_alpha_summary(
             ax=ax,
         )
         ax.set_yscale("log")
-        ax.set_title(window_name.capitalize(), fontweight="bold")
+        ax.set_title(window_name.capitalize(), fontsize=FONTSIZE_TITLE, fontweight="bold")
         ax.set_xlabel("")
-        ax.set_ylabel("Selected alpha" if col_index == 0 else "")
+        ax.set_ylabel("Ridge Regularization Parameter (α)" if col_index == 0 else "", fontsize=FONTSIZE_LABEL)
         ax.grid(axis="y", linestyle="--", linewidth=0.5, alpha=0.25)
+        ax.set_xticks(range(len(brain_regions)))
         ax.set_xticklabels(
             [
                 f"{params.short_names.get(region, region)}\n(n={session_counts.get(region, 0)})"
                 for region in brain_regions
             ],
             rotation=20,
+            fontsize=FONTSIZE_LABEL,
         )
+        ax.tick_params(axis="y", labelsize=FONTSIZE_LABEL)
+        sns.despine(ax=ax)
 
     fig.savefig(funcs.get_figure_dir("decoding/ridge") / f"{sound_type}_ridge_per_session_alpha.png", dpi=300)
     plt.close(fig)
@@ -259,10 +275,11 @@ def main() -> None:
         if results_df.empty:
             continue
         session_counts = {brain_area: len(list(sessions)) for brain_area, sessions in selected_sessions.items()}
+        display_name = SOUND_DISPLAY_NAMES.get(sound_type, sound_type)
         plot_ridge_summary(
             sound_type,
             results_df,
-            title=f"{sound_type} per-session ridge $R^2$",
+            title=f"Per-Session Ridge Regression Decoding — {display_name}",
             filename=f"{sound_type}_ridge_per_session.png",
             pair_cols=["Mouse", "Session"],
             session_counts=session_counts,

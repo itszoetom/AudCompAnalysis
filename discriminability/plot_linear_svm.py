@@ -9,12 +9,16 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+import pandas as pd
+
 from discriminability.discriminability_analysis import (  # noqa: E402
+    get_tuning_path,
     load_method_results,
     plot_heatmaps,
     plot_linear_svm_example,
     plot_natural_within_between_boxplots,
     plot_region_boxplots,
+    plot_svm_hyperparameter_tuning,
 )
 
 METHOD_KEY = "linearSVM"
@@ -50,6 +54,9 @@ def main() -> None:
         ylabel=YLABEL,
     )
     plot_linear_svm_example(results_df)
+    tuning_path = get_tuning_path()
+    if tuning_path.exists():
+        plot_svm_hyperparameter_tuning(pd.read_csv(tuning_path))
 
 
 if __name__ == "__main__":

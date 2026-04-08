@@ -24,6 +24,7 @@ if str(ROOT) not in sys.path:
 from shared import funcs, params  # noqa: E402
 
 WINDOW_ORDER = params.WINDOW_ORDER
+SOUND_DISPLAY_NAMES = params.SOUND_DISPLAY_NAMES
 apply_figure_style = funcs.apply_figure_style
 build_population_dataset = funcs.build_population_dataset
 build_sampled_dataset = funcs.build_sampled_dataset
@@ -34,6 +35,11 @@ list_available_sound_types = funcs.list_available_sound_types
 stimulus_tick_labels = funcs.stimulus_tick_labels
 
 DEFAULT_SCATTER_KWARGS = {"s": 24, "alpha": 0.85, "linewidths": 0}
+
+# Font size hierarchy: figure suptitle > panel titles > axis labels
+FONTSIZE_SUPTITLE = 38
+FONTSIZE_TITLE = 34
+FONTSIZE_LABEL = 30
 
 
 def get_figure_dir() -> Path:
@@ -54,8 +60,8 @@ def make_sound_figure(
     sound_type: str,
     title: str,
     *,
-    width_scale: float = 3.6,
-    height_scale: float = 3.1,
+    width_scale: float = 4,
+    height_scale: float = 4,
     sharey: bool = False,
 ) -> tuple[plt.Figure, np.ndarray]:
     """Create a standard sound-by-region-by-window figure grid."""
@@ -72,7 +78,7 @@ def make_sound_figure(
 
 def format_panel_title(brain_area: str, window_name: str) -> str:
     """Return a compact subplot title using short brain-region labels."""
-    return f"{params.short_names.get(brain_area, brain_area)}\n{window_name.capitalize()}"
+    return f"{params.short_names.get(brain_area, brain_area)} - {window_name.capitalize()}"
 
 
 def calculate_participation_ratio(explained_variance_ratio: np.ndarray) -> float:
@@ -140,9 +146,9 @@ def plot_scree(
     explained = np.asarray(pca_summary["explained_variance_ratio"])
     n_components = min(len(explained), 12)
     ax.bar(np.arange(n_components), explained[:n_components] * 100, color="black")
-    ax.set_title(title)
-    ax.set_xlabel("PC")
-    ax.set_ylabel("% Explained Variance")
+    ax.set_title(title, fontsize=FONTSIZE_TITLE, fontweight="bold")
+    ax.set_xlabel("PC", fontsize=FONTSIZE_LABEL)
+    ax.set_ylabel("% Explained Variance", fontsize=FONTSIZE_LABEL)
     ax.set_xticks(np.arange(n_components))
     if y_max is not None:
         ax.set_ylim(0, y_max)
@@ -152,6 +158,7 @@ def plot_scree(
         f"PR = {pca_summary['participation_ratio']:.2f}\nn = {pca_summary['n_neurons']}",
         ha="right",
         va="top",
+        fontsize=FONTSIZE_LABEL,
         transform=ax.transAxes,
     )
     ax.grid(axis="y", linestyle="--", linewidth=0.5, alpha=0.35)
@@ -172,14 +179,22 @@ def shared_scatter_limits(results: dict[tuple[str, str], dict[str, np.ndarray]])
 
 def add_stimulus_colorbar(fig: plt.Figure, scatter, sound_type: str, stim_array: np.ndarray) -> None:
     """Add one shared stimulus colorbar for a sound figure."""
-    colorbar = fig.colorbar(scatter, ax=fig.axes, location="bottom", fraction=0.03, pad=0.04)
+    colorbar = fig.colorbar(scatter, ax=fig.axes, location="bottom", fraction=0.04, pad=0.03, aspect=55)
     color_values = labels_for_sound(sound_type, stim_array)
     tick_labels = stimulus_tick_labels(sound_type, stim_array)
     unique_values, first_indices = np.unique(color_values, return_index=True)
-    colorbar.set_ticks(unique_values)
-    colorbar.set_ticklabels([tick_labels[index] for index in first_indices])
-    colorbar.ax.tick_params(labelsize=22, rotation=35)
-    colorbar.set_label("Stimulus", fontsize=22)
+
+    if sound_type == "PT":
+        # Show every other tick label to avoid crowding
+        selected = np.arange(0, len(unique_values), 2)
+        colorbar.set_ticks(unique_values[selected])
+        colorbar.set_ticklabels([tick_labels[first_indices[i]] for i in selected])
+    else:
+        colorbar.set_ticks(unique_values)
+        colorbar.set_ticklabels([tick_labels[index] for index in first_indices])
+
+    colorbar.ax.tick_params(labelsize=FONTSIZE_LABEL, rotation=35)
+    colorbar.set_label("Stimulus", fontsize=FONTSIZE_TITLE)
 
 
 def collect_sound_results(

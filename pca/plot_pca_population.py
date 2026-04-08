@@ -11,6 +11,10 @@ except ImportError:  # pragma: no cover
 
 try:
     from .pca_analysis import (
+        FONTSIZE_LABEL,
+        FONTSIZE_SUPTITLE,
+        FONTSIZE_TITLE,
+        SOUND_DISPLAY_NAMES,
         add_stimulus_colorbar,
         apply_figure_style,
         build_sampled_dataset,
@@ -27,6 +31,10 @@ try:
     )
 except ImportError:
     from pca_analysis import (
+        FONTSIZE_LABEL,
+        FONTSIZE_SUPTITLE,
+        FONTSIZE_TITLE,
+        SOUND_DISPLAY_NAMES,
         add_stimulus_colorbar,
         apply_figure_style,
         build_sampled_dataset,
@@ -51,11 +59,12 @@ def save_projection_figure(sound_type: str, results, target_neurons: int) -> Non
     fig, axes = plt.subplots(
         n_rows,
         n_windows,
-        figsize=(3.8 * n_windows, 3.6 * n_rows),
+        figsize=(5.5 * n_windows, 5.2 * n_rows),
         squeeze=False,
         constrained_layout=True,
     )
-    fig.suptitle(f"{sound_type} population PCA projections (n={target_neurons} neurons per region)", fontsize=26, fontweight="bold")
+    display_name = SOUND_DISPLAY_NAMES.get(sound_type, sound_type)
+    fig.suptitle(f"Population-Level PCA Projections — {display_name}", fontsize=FONTSIZE_SUPTITLE, fontweight="bold")
     x_min, x_max, y_min, y_max = shared_scatter_limits(results)
     last_scatter = None
 
@@ -74,15 +83,16 @@ def save_projection_figure(sound_type: str, results, target_neurons: int) -> Non
             scores[:, 1],
             c=labels_for_sound(sound_type, dataset["Y"]),
             cmap="viridis",
-            s=24,
+            s=55,
             alpha=0.85,
             linewidths=0,
         )
         scatter_ax.set_xlim(x_min, x_max)
         scatter_ax.set_ylim(y_min, y_max)
-        scatter_ax.set_title(format_panel_title(brain_area, window_name), fontweight="bold")
-        scatter_ax.set_xlabel(f"PC1 ({explained[0] * 100:.1f}%)")
-        scatter_ax.set_ylabel(f"PC2 ({explained[1] * 100:.1f}%)")
+        scatter_ax.set_title(format_panel_title(brain_area, window_name), fontsize=FONTSIZE_TITLE, fontweight="bold")
+        scatter_ax.set_xlabel(f"PC1 ({explained[0] * 100:.1f}%)", fontsize=FONTSIZE_LABEL)
+        scatter_ax.set_ylabel(f"PC2 ({explained[1] * 100:.1f}%)", fontsize=FONTSIZE_LABEL)
+        scatter_ax.tick_params(labelsize=FONTSIZE_LABEL)
         scatter_ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.25)
 
     if last_scatter is not None:
@@ -99,11 +109,12 @@ def save_scree_figure(sound_type: str, results, target_neurons: int) -> None:
     fig, axes = plt.subplots(
         n_rows,
         n_windows,
-        figsize=(3.8 * n_windows, 3.6 * n_rows),
+        figsize=(5.5 * n_windows, 5.2 * n_rows),
         squeeze=False,
         constrained_layout=True,
     )
-    fig.suptitle(f"{sound_type} population PCA scree plots (n={target_neurons} neurons per region)", fontsize=26, fontweight="bold")
+    display_name = SOUND_DISPLAY_NAMES.get(sound_type, sound_type)
+    fig.suptitle(f"Dimensionality of AC Population Activity — {display_name}", fontsize=FONTSIZE_SUPTITLE, fontweight="bold")
     scree_ymax = max(float(panel["summary"]["explained_variance_ratio"][0]) * 100 for panel in results.values()) * 1.05
 
     for row_index, brain_area, col_index, window_name in panels:

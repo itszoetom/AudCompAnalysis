@@ -26,6 +26,12 @@ from shared.plot_stats import add_pairwise_annotations, box_centers, pairwise_gr
 
 WINDOW_ORDER = params.WINDOW_ORDER
 WINDOW_TO_KEY = params.WINDOW_TO_KEY
+SOUND_DISPLAY_NAMES = params.SOUND_DISPLAY_NAMES
+
+# Font size hierarchy matching project-wide style
+FONTSIZE_SUPTITLE = 38
+FONTSIZE_TITLE = 32
+FONTSIZE_LABEL = 28
 SOUND_FILE_KEYS = params.SOUND_FILE_KEYS
 RIDGE_ALPHAS = funcs.RIDGE_ALPHAS
 apply_figure_style = funcs.apply_figure_style
@@ -208,12 +214,12 @@ def plot_ridge_summary(
     fig, axes = plt.subplots(
         1,
         len(WINDOW_ORDER),
-        figsize=(3.8 * len(WINDOW_ORDER), 4.2),
+        figsize=(5.5 * len(WINDOW_ORDER), 5.2),
         squeeze=False,
         sharey=True,
         constrained_layout=True,
     )
-    fig.suptitle(title, fontsize=26, fontweight="bold")
+    fig.suptitle(title, fontsize=FONTSIZE_SUPTITLE, fontweight="bold")
     y_min = float(results_df["R2 Test"].min())
     y_max = float(results_df["R2 Test"].max())
     max_annotations = len(target_order) * (len(brain_regions) * (len(brain_regions) - 1) // 2)
@@ -275,9 +281,9 @@ def plot_ridge_summary(
             data_max=y_max,
             data_min=y_min,
         )
-        ax.set_title(window_name.capitalize(), fontweight="bold")
+        ax.set_title(window_name.capitalize(), fontsize=FONTSIZE_TITLE, fontweight="bold")
         ax.set_xlabel("")
-        ax.set_ylabel("$R^2$" if col_index == 0 else "")
+        ax.set_ylabel("$R^2$" if col_index == 0 else "", fontsize=FONTSIZE_LABEL)
         panel_r2 = float(panel_df["R2 Test"].mean())
         panel_rmse = float(panel_df["RMSE"].mean()) if "RMSE" in panel_df else np.nan
         panel_alpha = float(panel_df["Best Alpha"].mean()) if "Best Alpha" in panel_df else np.nan
@@ -289,7 +295,7 @@ def plot_ridge_summary(
             transform=ax.transAxes,
             ha="left",
             va="top",
-            fontsize=22,
+            fontsize=FONTSIZE_LABEL,
             bbox={"facecolor": "white", "edgecolor": "0.85", "alpha": 0.9, "pad": 2.5},
         )
         x_tick_labels = []
@@ -298,7 +304,8 @@ def plot_ridge_summary(
             if session_counts is not None and region in session_counts:
                 label = f"{label}\n(n={session_counts[region]})"
             x_tick_labels.append(label)
-        ax.set_xticklabels(x_tick_labels, rotation=20)
+        ax.set_xticklabels(x_tick_labels, rotation=20, fontsize=FONTSIZE_LABEL)
+        ax.tick_params(axis="y", labelsize=FONTSIZE_LABEL)
         ax.grid(axis="y", linestyle="--", linewidth=0.5, alpha=0.25)
         ax.set_ylim(y_min - y_step, y_max + y_step * (max_annotations + 2))
 
