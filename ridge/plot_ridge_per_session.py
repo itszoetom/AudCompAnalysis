@@ -6,11 +6,13 @@ from collections.abc import Iterable
 
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
 from sklearn.linear_model import RidgeCV
 from sklearn.model_selection import KFold
 from sklearn.preprocessing import StandardScaler
 
-import params
+from shared import params
 try:
     from tqdm.auto import tqdm
 except ImportError:  # pragma: no cover
@@ -62,34 +64,19 @@ def _eligible_sessions_for_area(
     return eligible_sessions
 
 
-def sample_balanced_sessions(
+def collect_eligible_sessions(
     sound_type: str,
     n_neurons: int,
     *,
     seed: int | None = None,
 ) -> dict[str, list[tuple[str, str]]]:
-    """Return a reproducible equal-session subset for each plotted brain area."""
+    """Return all eligible sessions for each plotted brain area."""
     brain_regions = get_plot_brain_regions(sound_type)
-    eligible_by_area = {
+    _ = seed
+    return {
         brain_area: _eligible_sessions_for_area(sound_type, brain_area, n_neurons)
         for brain_area in brain_regions
     }
-    if not eligible_by_area:
-        return {}
-
-    target_sessions = min(len(sessions) for sessions in eligible_by_area.values())
-    if target_sessions == 0:
-        return {brain_area: [] for brain_area in brain_regions}
-
-    balanced_sessions: dict[str, list[tuple[str, str]]] = {}
-    for brain_area, sessions in eligible_by_area.items():
-        area_seed = funcs.deterministic_seed(sound_type, brain_area, "balanced_sessions") if seed is None else seed
-        rng = np.random.default_rng(area_seed)
-        session_indices = np.arange(len(sessions))
-        if len(sessions) > target_sessions:
-            session_indices = np.sort(rng.choice(session_indices, size=target_sessions, replace=False))
-        balanced_sessions[brain_area] = [sessions[index] for index in session_indices]
-    return balanced_sessions
 
 
 def build_session_frame(
@@ -98,14 +85,14 @@ def build_session_frame(
     n_subsamples: int = 100,
     selected_sessions: dict[str, Iterable[tuple[str, str]]] | None = None,
 ) -> pd.DataFrame:
-    """Return fold-level per-session ridge scores after balanced session and neuron subsampling."""
+    """Return one mean per-session ridge score after eligible-session and neuron subsampling."""
     n_neurons = params.NEURONS_PER_SESSION[sound_type] if n_neurons is None else n_neurons
     records = []
-    balanced_sessions = selected_sessions or sample_balanced_sessions(sound_type, n_neurons)
+    eligible_sessions = selected_sessions or collect_eligible_sessions(sound_type, n_neurons)
     conditions = [
         (mouse_id, session_id, brain_area, window_name)
         for brain_area in get_plot_brain_regions(sound_type)
-        for mouse_id, session_id in balanced_sessions.get(brain_area, [])
+        for mouse_id, session_id in eligible_sessions.get(brain_area, [])
         for window_name in WINDOW_ORDER
     ]
     for mouse_id, session_id, brain_area, window_name in tqdm(
@@ -177,26 +164,88 @@ def build_session_frame(
             mean_fold_scores = np.mean(np.asarray(fold_scores_by_subsample, dtype=float), axis=0)
             mean_fold_rmses = np.mean(np.asarray(fold_rmses_by_subsample, dtype=float), axis=0)
             mean_fold_alphas = np.mean(np.asarray(fold_alphas_by_subsample, dtype=float), axis=0)
-            for fold_index, (fold_score, fold_rmse, fold_alpha) in enumerate(
-                zip(mean_fold_scores, mean_fold_rmses, mean_fold_alphas),
-                start=1,
-            ):
-                records.append(
-                    {
-                        "Mouse": mouse_id,
-                        "Session": session_id,
-                        "Fold": int(fold_index),
-                        "Brain Area": brain_area,
-                        "Window": window_name,
-                        "Target": target_dataset["target_name"],
-                        "R2 Test": float(fold_score),
-                        "RMSE": float(fold_rmse),
-                        "Best Alpha": float(fold_alpha),
-                        "Neurons": int(n_neurons),
-                        "Trials": int(len(y)),
-                    }
-                )
+            records.append(
+                {
+                    "Mouse": mouse_id,
+                    "Session": session_id,
+                    "Brain Area": brain_area,
+                    "Window": window_name,
+                    "Target": target_dataset["target_name"],
+                    "R2 Test": float(np.mean(mean_fold_scores)),
+                    "RMSE": float(np.mean(mean_fold_rmses)),
+                    "Best Alpha": float(np.mean(mean_fold_alphas)),
+                    "Neurons": int(n_neurons),
+                    "Trials": int(len(y)),
+                }
+            )
     return pd.DataFrame(records)
+
+
+def plot_ridge_alpha_summary(
+    sound_type: str,
+    results_df: pd.DataFrame,
+    *,
+    session_counts: dict[str, int],
+) -> None:
+    """Save one appendix-style alpha summary figure for per-session ridge."""
+    if results_df.empty:
+        return
+
+    brain_regions = get_plot_brain_regions(sound_type)
+    fig, axes = plt.subplots(
+        1,
+        len(WINDOW_ORDER),
+        figsize=(3.8 * len(WINDOW_ORDER), 4.2),
+        squeeze=False,
+        sharey=True,
+        constrained_layout=True,
+    )
+    fig.suptitle(f"{sound_type} per-session ridge selected alpha", fontsize=26, fontweight="bold")
+    region_palette = sns.color_palette("viridis", n_colors=len(brain_regions))
+
+    for col_index, window_name in enumerate(WINDOW_ORDER):
+        ax = axes[0, col_index]
+        panel_df = results_df[results_df["Window"] == window_name].copy()
+        if panel_df.empty:
+            ax.axis("off")
+            continue
+
+        sns.boxplot(
+            data=panel_df,
+            x="Brain Area",
+            y="Best Alpha",
+            order=brain_regions,
+            width=0.5,
+            fliersize=2,
+            linewidth=1,
+            palette=region_palette,
+            ax=ax,
+        )
+        sns.stripplot(
+            data=panel_df,
+            x="Brain Area",
+            y="Best Alpha",
+            order=brain_regions,
+            color="black",
+            alpha=0.35,
+            size=3,
+            ax=ax,
+        )
+        ax.set_yscale("log")
+        ax.set_title(window_name.capitalize(), fontweight="bold")
+        ax.set_xlabel("")
+        ax.set_ylabel("Selected alpha" if col_index == 0 else "")
+        ax.grid(axis="y", linestyle="--", linewidth=0.5, alpha=0.25)
+        ax.set_xticklabels(
+            [
+                f"{params.short_names.get(region, region)}\n(n={session_counts.get(region, 0)})"
+                for region in brain_regions
+            ],
+            rotation=20,
+        )
+
+    fig.savefig(funcs.get_figure_dir("decoding/ridge") / f"{sound_type}_ridge_per_session_alpha.png", dpi=300)
+    plt.close(fig)
 
 
 def main() -> None:
@@ -205,7 +254,7 @@ def main() -> None:
     for sound_type in tqdm(list_available_sound_types(), desc="Per-session ridge plots", unit="sound", dynamic_ncols=True):
         print(f"Running per-session ridge plots for {sound_type}...")
         n_neurons = params.NEURONS_PER_SESSION[sound_type]
-        selected_sessions = sample_balanced_sessions(sound_type, n_neurons)
+        selected_sessions = collect_eligible_sessions(sound_type, n_neurons)
         results_df = build_session_frame(sound_type, n_neurons=n_neurons, selected_sessions=selected_sessions)
         if results_df.empty:
             continue
@@ -217,8 +266,8 @@ def main() -> None:
             filename=f"{sound_type}_ridge_per_session.png",
             pair_cols=["Mouse", "Session"],
             session_counts=session_counts,
-            neurons_per_session=n_neurons,
         )
+        plot_ridge_alpha_summary(sound_type, results_df, session_counts=session_counts)
 
 
 if __name__ == "__main__":

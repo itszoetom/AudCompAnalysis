@@ -56,7 +56,7 @@ def main() -> None:
         print(f"Building UMAP figures for {sound_type}...")
         target_neurons = get_target_neuron_count(sound_type)
         fig, axes = make_sound_figure(sound_type, "")
-        fig.suptitle(f"{sound_type} population UMAP (n={target_neurons} neurons per region)", fontsize=16, fontweight="bold")
+        fig.suptitle(f"{sound_type} population UMAP (n={target_neurons} neurons per region)", fontsize=26, fontweight="bold")
         last_scatter = None
         last_dataset = None
         for row_index, brain_area, col_index, window_name in tqdm(

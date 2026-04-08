@@ -11,7 +11,7 @@ from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import KFold, LeaveOneOut
 from sklearn.preprocessing import StandardScaler
 
-import params
+from shared import params
 
 RIDGE_ALPHAS = np.logspace(-10, 5, 200)
 RIDGE_N_SPLITS = 5
@@ -140,6 +140,13 @@ def apply_figure_style() -> None:
             "savefig.dpi": 300,
             "font.family": "serif",
             "font.serif": ["Times New Roman", "Times", "DejaVu Serif"],
+            "axes.titlesize": 24,
+            "axes.labelsize": 22,
+            "xtick.labelsize": 22,
+            "ytick.labelsize": 22,
+            "legend.fontsize": 22,
+            "legend.title_fontsize": 22,
+            "figure.titlesize": 26,
         },
     )
 
@@ -389,8 +396,8 @@ def stimulus_tick_labels(sound_type: str, stim_array: np.ndarray) -> list[str]:
     if sound_type == "naturalSound":
         return [params.NAT_SOUND_LABELS[int(value)] for value in np.asarray(stim_array, dtype=int)]
     if sound_type == "AM":
-        return [f"AM White Noise - {int(value)} Hz" for value in np.asarray(stim_array, dtype=float)]
-    return [f"Pure Tones - {int(value)} Hz" for value in np.asarray(stim_array, dtype=float)]
+        return [f"{int(value)} Hz" for value in np.asarray(stim_array, dtype=float)]
+    return [f"{int(value)} Hz" for value in np.asarray(stim_array, dtype=float)]
 
 
 def ridge_target_values(y: np.ndarray, *, log_target: bool) -> np.ndarray:

@@ -43,38 +43,32 @@ except ImportError:
     )
 
 
-def save_population_figure(sound_type: str, results, target_neurons: int) -> None:
-    """Save one combined scree-plus-scatter PCA figure for one sound type."""
+def save_projection_figure(sound_type: str, results, target_neurons: int) -> None:
+    """Save one PCA projection figure for one sound type."""
     panels = panel_conditions(sound_type)
     n_rows = max(row_index for row_index, *_ in panels) + 1
     n_windows = max(col_index for *_, col_index, _ in panels) + 1
     fig, axes = plt.subplots(
         n_rows,
-        2 * n_windows,
-        figsize=(3.4 * 2 * n_windows, 3.4 * n_rows),
+        n_windows,
+        figsize=(3.8 * n_windows, 3.6 * n_rows),
         squeeze=False,
         constrained_layout=True,
     )
-    fig.suptitle(f"{sound_type} population PCA (n={target_neurons} neurons per region)", fontsize=16, fontweight="bold")
-    scree_ymax = max(float(panel["summary"]["explained_variance_ratio"][0]) * 100 for panel in results.values()) * 1.05
+    fig.suptitle(f"{sound_type} population PCA projections (n={target_neurons} neurons per region)", fontsize=26, fontweight="bold")
     x_min, x_max, y_min, y_max = shared_scatter_limits(results)
     last_scatter = None
 
     for row_index, brain_area, col_index, window_name in panels:
-        scree_ax = axes[row_index, 2 * col_index]
-        scatter_ax = axes[row_index, 2 * col_index + 1]
+        scatter_ax = axes[row_index, col_index]
         panel = results.get((brain_area, window_name))
         if panel is None:
-            scree_ax.axis("off")
             scatter_ax.axis("off")
             continue
         dataset = panel["dataset"]
         summary = panel["summary"]
         scores = summary["scores"]
         explained = summary["explained_variance_ratio"]
-
-        plot_scree(scree_ax, summary, format_panel_title(brain_area, window_name), y_max=scree_ymax)
-
         last_scatter = scatter_ax.scatter(
             scores[:, 0],
             scores[:, 1],
@@ -93,7 +87,34 @@ def save_population_figure(sound_type: str, results, target_neurons: int) -> Non
 
     if last_scatter is not None:
         add_stimulus_colorbar(fig, last_scatter, sound_type, next(iter(results.values()))["dataset"]["Y"])
-    fig.savefig(get_figure_dir() / f"{sound_type}_population_pca.png", dpi=300)
+    fig.savefig(get_figure_dir() / f"pca/{sound_type}_population_pca_projections.png", dpi=300)
+    plt.close(fig)
+
+
+def save_scree_figure(sound_type: str, results, target_neurons: int) -> None:
+    """Save one scree-only PCA figure for one sound type."""
+    panels = panel_conditions(sound_type)
+    n_rows = max(row_index for row_index, *_ in panels) + 1
+    n_windows = max(col_index for *_, col_index, _ in panels) + 1
+    fig, axes = plt.subplots(
+        n_rows,
+        n_windows,
+        figsize=(3.8 * n_windows, 3.6 * n_rows),
+        squeeze=False,
+        constrained_layout=True,
+    )
+    fig.suptitle(f"{sound_type} population PCA scree plots (n={target_neurons} neurons per region)", fontsize=26, fontweight="bold")
+    scree_ymax = max(float(panel["summary"]["explained_variance_ratio"][0]) * 100 for panel in results.values()) * 1.05
+
+    for row_index, brain_area, col_index, window_name in panels:
+        scree_ax = axes[row_index, col_index]
+        panel = results.get((brain_area, window_name))
+        if panel is None:
+            scree_ax.axis("off")
+            continue
+        summary = panel["summary"]
+        plot_scree(scree_ax, summary, format_panel_title(brain_area, window_name), y_max=scree_ymax)
+    fig.savefig(get_figure_dir() / f"pca/{sound_type}_population_pca_scree.png", dpi=300)
     plt.close(fig)
 
 
@@ -102,7 +123,7 @@ def main() -> None:
     apply_figure_style()
     sound_types = list_available_sound_types()
     for sound_type in tqdm(sound_types, desc="PCA population figures", unit="sound", dynamic_ncols=True):
-        print(f"Building PCA population scatter and scree plots for {sound_type}...")
+        print(f"Building PCA population projections and scree plots for {sound_type}...")
         target_neurons = get_target_neuron_count(sound_type)
         results = collect_sound_results(
             sound_type,
@@ -117,7 +138,8 @@ def main() -> None:
         )
         if not results:
             continue
-        save_population_figure(sound_type, results, target_neurons)
+        save_projection_figure(sound_type, results, target_neurons)
+        save_scree_figure(sound_type, results, target_neurons)
 
 
 if __name__ == "__main__":

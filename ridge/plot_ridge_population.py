@@ -9,7 +9,7 @@ except ImportError:  # pragma: no cover
     def tqdm(iterable=None, *args, total=None, **kwargs):
         return iterable if iterable is not None else range(total or 0)
 
-import params
+from shared import params
 
 try:
     from .ridge_analysis import (

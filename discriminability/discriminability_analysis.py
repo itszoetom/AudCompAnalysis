@@ -28,14 +28,11 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import params  # noqa: E402
-import funcs  # noqa: E402
-from plot_stats import (  # noqa: E402
+from shared import funcs, params  # noqa: E402
+from shared.plot_stats import (  # noqa: E402
     add_pairwise_annotations,
-    add_within_group_hue_annotations,
     box_centers,
     pairwise_group_tests,
-    pairwise_hue_tests_within_group,
 )
 
 SVM_C_VALUES = funcs.DISCRIMINABILITY_SVM_C_VALUES
@@ -258,7 +255,7 @@ def plot_svm_hyperparameter_tuning(tuning_df: pd.DataFrame) -> None:
         fig, axes = make_sound_figure(sound_type, width_scale=4.6, height_scale=3.8)
         fig.suptitle(
             f"{params.SOUND_DISPLAY_NAMES[sound_type]} Linear SVM Hyperparameter Tuning",
-            fontsize=16,
+            fontsize=26,
             fontweight="bold",
         )
         for row_index, brain_area in enumerate(brain_regions):
@@ -350,7 +347,7 @@ def plot_linear_svm_example(results_df: pd.DataFrame) -> None:
     decision = model.decision_function(grid).reshape(xx.shape)
     class_colors = [plt.cm.viridis(0.2), plt.cm.viridis(0.8)]
 
-    fig, ax = plt.subplots(figsize=(7.0, 6.0), constrained_layout=True)
+    fig, ax = plt.subplots(figsize=(7.2, 6.2), constrained_layout=True)
     ax.contourf(xx, yy, decision > 0, levels=1, alpha=0.08, colors=class_colors)
     visible_margin_levels = [level for level in (-1, 0, 1) if decision.min() <= level <= decision.max()]
     if visible_margin_levels:
@@ -402,7 +399,7 @@ def plot_linear_svm_example(results_df: pd.DataFrame) -> None:
         transform=ax.transAxes,
         ha="left",
         va="bottom",
-        fontsize=9,
+        fontsize=22,
         bbox={"facecolor": "white", "edgecolor": "0.85", "alpha": 0.95, "pad": 3},
     )
     fig.savefig(example_output_dir() / "linearSVM_example_boundary.png", dpi=300)
@@ -556,7 +553,7 @@ def plot_heatmaps(
         fig, axes = make_sound_figure(sound_type, width_scale=4.6, height_scale=3.8)
         fig.suptitle(
             f"{params.SOUND_DISPLAY_NAMES[sound_type]} {method_label} heatmaps",
-            fontsize=16,
+            fontsize=26,
             fontweight="bold",
         )
         colorbar_source = None
@@ -588,12 +585,13 @@ def plot_heatmaps(
                 )
                 ax.set_xlabel("")
                 ax.set_ylabel("")
-                ax.tick_params(axis="x", rotation=60, labelsize=7)
-                ax.tick_params(axis="y", rotation=0, labelsize=7)
+                ax.tick_params(axis="x", rotation=60, labelsize=22)
+                ax.tick_params(axis="y", rotation=0, labelsize=22)
 
         if colorbar_source is not None:
             colorbar = fig.colorbar(colorbar_source, ax=axes, location="right", fraction=0.03, pad=0.02)
-            colorbar.set_label(method_label)
+            colorbar.set_label(method_label, fontsize=22)
+            colorbar.ax.tick_params(labelsize=22)
         fig.savefig(output_dir / f"{method_key}_{sound_type}_heatmaps.png", dpi=300)
         plt.close(fig)
 
@@ -614,8 +612,8 @@ def plot_region_boxplots(
             continue
         output_dir = figure_output_dir(sound_type, method_key)
         brain_regions = funcs.get_plot_brain_regions(sound_type)
-        fig, axes = plt.subplots(1, len(params.WINDOW_ORDER), figsize=(4.6 * len(params.WINDOW_ORDER), 4.8), sharey=True, constrained_layout=True)
-        fig.suptitle(f"{params.SOUND_DISPLAY_NAMES[sound_type]} {method_label}", fontsize=16, fontweight="bold")
+        fig, axes = plt.subplots(1, len(params.WINDOW_ORDER), figsize=(3.8 * len(params.WINDOW_ORDER), 4.1), sharey=True, constrained_layout=True)
+        fig.suptitle(f"{params.SOUND_DISPLAY_NAMES[sound_type]} {method_label}", fontsize=26, fontweight="bold")
         max_annotations = len(brain_regions) * (len(brain_regions) - 1) // 2
         y_min, y_max, y_step = score_axis_limits(sound_df[value_col])
         region_palette = sns.color_palette("viridis", n_colors=len(brain_regions))
@@ -688,13 +686,14 @@ def plot_natural_within_between_boxplots(
 
     brain_regions = funcs.get_plot_brain_regions("naturalSound")
     hue_order = ["Within", "Between"]
-    fig, axes = plt.subplots(1, len(params.WINDOW_ORDER), figsize=(4.8 * len(params.WINDOW_ORDER), 4.8), sharey=True, constrained_layout=True)
+    fig, axes = plt.subplots(1, len(params.WINDOW_ORDER), figsize=(3.9 * len(params.WINDOW_ORDER), 4.1), sharey=True, constrained_layout=True)
     fig.suptitle(
         f"Natural Sounds {method_label} within vs between category",
-        fontsize=16,
+        fontsize=26,
         fontweight="bold",
     )
     y_min, y_max, y_step = score_axis_limits(natural_df[value_col])
+    max_annotations = len(hue_order) * (len(brain_regions) * (len(brain_regions) - 1) // 2)
 
     for ax, window_name in zip(np.ravel(axes), params.WINDOW_ORDER):
         panel_df = natural_df[natural_df["Window"] == window_name].copy()
@@ -727,16 +726,16 @@ def plot_natural_within_between_boxplots(
         )
         if ax.legend_ is not None:
             ax.legend_.remove()
-        stats_df = pairwise_hue_tests_within_group(
+        stats_df = pairwise_group_tests(
             panel_df,
             group_col="Brain Area",
+            value_col=value_col,
             group_order=brain_regions,
             hue_col="Pair Type",
             hue_order=hue_order,
-            value_col=value_col,
             test_mode="unpaired",
         )
-        add_within_group_hue_annotations(
+        add_pairwise_annotations(
             ax,
             stats_df,
             centers=box_centers(brain_regions, hue_levels=hue_order),
@@ -750,7 +749,7 @@ def plot_natural_within_between_boxplots(
             brain_regions,
             show_ylabel=(window_name == params.WINDOW_ORDER[0]),
             y_min=y_min - y_step,
-            y_max=y_max + y_step * (len(hue_order) + 2),
+            y_max=y_max + y_step * (max_annotations + 2),
         )
 
     handles, labels = axes[0].get_legend_handles_labels()

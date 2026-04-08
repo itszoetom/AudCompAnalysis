@@ -55,7 +55,7 @@ def main() -> None:
         print(f"Building trial-averaged PCA plots for {sound_type}...")
         target_neurons = get_target_neuron_count(sound_type)
         fig, axes = make_sound_figure(sound_type, "")
-        fig.suptitle(f"{sound_type} averaged PCA (n={target_neurons} neurons per region)", fontsize=16, fontweight="bold")
+        fig.suptitle(f"{sound_type} averaged PCA (n={target_neurons} neurons per region)", fontsize=26, fontweight="bold")
 
         def build_panel(brain_area: str, window_name: str):
             dataset = build_sampled_dataset(sound_type, window_name, brain_area, n_neurons=target_neurons)

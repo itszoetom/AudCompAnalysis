@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -9,8 +10,11 @@ import pandas as pd
 from jaratoolbox import celldatabase, ephyscore, spikesanalysis
 from tqdm import tqdm
 
-import funcs
-import params
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from shared import funcs, params
 
 WINDOW_NAMES = params.WINDOW_NAMES
 

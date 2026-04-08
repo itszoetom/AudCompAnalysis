@@ -36,4 +36,5 @@ Population-based pairwise stimulus discriminability analyses.
 ## Notes
 
 - natural sounds also include within- vs. between-category boxplots
+- natural-sound summary boxplots compare brain regions within the `Within` and `Between` categories separately
 - thesis-facing summary figures use viridis-based palettes

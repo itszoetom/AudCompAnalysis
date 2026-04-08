@@ -183,7 +183,7 @@ def add_pairwise_annotations(
         bracket_y = base_y + step * (offset_index - 1)
         star_text = significance_stars(float(row.p_corrected))
         ax.plot([x1, x1, x2, x2], [bracket_y, bracket_y + step / 2, bracket_y + step / 2, bracket_y], lw=1.2, c="black", clip_on=False)
-        ax.text((x1 + x2) / 2, bracket_y + step / 2, star_text, ha="center", va="bottom", fontsize=9)
+        ax.text((x1 + x2) / 2, bracket_y + step / 2, star_text, ha="center", va="bottom", fontsize=22)
 
 
 def add_within_group_hue_annotations(
@@ -215,4 +215,4 @@ def add_within_group_hue_annotations(
         group_offsets[row.group] = offset + 1
         star_text = significance_stars(float(row.p_corrected))
         ax.plot([x1, x1, x2, x2], [bracket_y, bracket_y + step / 2, bracket_y + step / 2, bracket_y], lw=1.2, c="black", clip_on=False)
-        ax.text((x1 + x2) / 2, bracket_y + step / 2, star_text, ha="center", va="bottom", fontsize=9)
+        ax.text((x1 + x2) / 2, bracket_y + step / 2, star_text, ha="center", va="bottom", fontsize=22)

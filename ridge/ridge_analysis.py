@@ -21,9 +21,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import params  # noqa: E402
-import funcs  # noqa: E402
-from plot_stats import add_pairwise_annotations, box_centers, pairwise_group_tests  # noqa: E402
+from shared import funcs, params  # noqa: E402
+from shared.plot_stats import add_pairwise_annotations, box_centers, pairwise_group_tests  # noqa: E402
 
 WINDOW_ORDER = params.WINDOW_ORDER
 WINDOW_TO_KEY = params.WINDOW_TO_KEY
@@ -209,13 +208,12 @@ def plot_ridge_summary(
     fig, axes = plt.subplots(
         1,
         len(WINDOW_ORDER),
-        figsize=(4.4 * len(WINDOW_ORDER), 4.8),
+        figsize=(3.8 * len(WINDOW_ORDER), 4.2),
         squeeze=False,
         sharey=True,
         constrained_layout=True,
     )
-    title_suffix = f" | {neurons_per_session} neurons/session" if neurons_per_session is not None else ""
-    fig.suptitle(f"{title}{title_suffix}", fontsize=16, fontweight="bold")
+    fig.suptitle(title, fontsize=26, fontweight="bold")
     y_min = float(results_df["R2 Test"].min())
     y_max = float(results_df["R2 Test"].max())
     max_annotations = len(target_order) * (len(brain_regions) * (len(brain_regions) - 1) // 2)
@@ -291,7 +289,7 @@ def plot_ridge_summary(
             transform=ax.transAxes,
             ha="left",
             va="top",
-            fontsize=8,
+            fontsize=22,
             bbox={"facecolor": "white", "edgecolor": "0.85", "alpha": 0.9, "pad": 2.5},
         )
         x_tick_labels = []

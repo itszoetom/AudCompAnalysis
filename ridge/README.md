@@ -17,7 +17,7 @@ Ridge decoding analyses and figures.
 
 ## Per-Session Ridge
 
-- balance brain areas to the same number of eligible sessions
+- keep all eligible sessions in each brain area
 - subsample each retained session to:
   - speech: `10` neurons
   - non-speech: `30` neurons
@@ -25,6 +25,7 @@ Ridge decoding analyses and figures.
 - repeat neuron subsampling `100` times
 - average across subsamples within each fold
 - plot the resulting `5` fold-level `R^2` values per session
+- x-axis labels include `n = number of sessions` for each brain area
 
 ## Shared Settings
 

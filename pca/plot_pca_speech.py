@@ -40,11 +40,11 @@ def save_feature_figure(feature_name: str, feature_index: int) -> None:
     fig, axes = plt.subplots(
         len(brain_regions),
         len(WINDOW_ORDER),
-        figsize=(4.0 * len(WINDOW_ORDER), 3.5 * len(brain_regions)),
+        figsize=(3.6 * len(WINDOW_ORDER), 3.1 * len(brain_regions)),
         squeeze=False,
         constrained_layout=True,
     )
-    fig.suptitle(f"speech PCA colored by {feature_name} (n={target_neurons} neurons per region)", fontsize=16, fontweight="bold")
+    fig.suptitle(f"speech PCA colored by {feature_name} (n={target_neurons} neurons per region)", fontsize=26, fontweight="bold")
     last_scatter = None
     panel_conditions = [(row_index, brain_area, col_index, window_name) for row_index, brain_area in enumerate(brain_regions) for col_index, window_name in enumerate(WINDOW_ORDER)]
     for row_index, brain_area, col_index, window_name in tqdm(
@@ -69,7 +69,8 @@ def save_feature_figure(feature_name: str, feature_index: int) -> None:
         ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.25)
     if last_scatter is not None:
         colorbar = fig.colorbar(last_scatter, ax=fig.axes, location="bottom", fraction=0.03, pad=0.04)
-        colorbar.set_label(f"{feature_name} value", fontsize=12)
+        colorbar.set_label(f"{feature_name} value", fontsize=22)
+        colorbar.ax.tick_params(labelsize=22)
     fig.savefig(get_figure_dir() / "pca/speech_separate" / f"speech_pca_{feature_name.lower()}.png", dpi=300)
     plt.close(fig)
 

@@ -19,8 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import params
-import funcs
+from shared import funcs, params
 
 
 def build_count_frame(sound_type: str) -> pd.DataFrame:
@@ -51,8 +50,8 @@ def plot_summary_figure(count_frame: pd.DataFrame, title: str, filename: str, se
     mouse_counts = count_frame.groupby(["Brain Area", "Mouse"]).size().reset_index(name="Neurons per Mouse")
     total_counts = count_frame.groupby("Brain Area").size().reset_index(name="Total Neurons")
 
-    fig, axes = plt.subplots(1, 3, figsize=(13, 4.5), constrained_layout=True)
-    fig.suptitle(title, fontsize=16, fontweight="bold")
+    fig, axes = plt.subplots(1, 3, figsize=(11.5, 4.2), constrained_layout=True)
+    fig.suptitle(title, fontsize=26, fontweight="bold")
 
     sns.histplot(
         data=session_counts,

@@ -11,7 +11,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 from sklearn.decomposition import PCA
-from sklearn.preprocessing import StandardScaler
 try:
     from tqdm.auto import tqdm
 except ImportError:  # pragma: no cover
@@ -22,8 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import params  # noqa: E402
-import funcs  # noqa: E402
+from shared import funcs, params  # noqa: E402
 
 WINDOW_ORDER = params.WINDOW_ORDER
 apply_figure_style = funcs.apply_figure_style
@@ -56,8 +54,8 @@ def make_sound_figure(
     sound_type: str,
     title: str,
     *,
-    width_scale: float = 4.0,
-    height_scale: float = 3.5,
+    width_scale: float = 3.6,
+    height_scale: float = 3.1,
     sharey: bool = False,
 ) -> tuple[plt.Figure, np.ndarray]:
     """Create a standard sound-by-region-by-window figure grid."""
@@ -79,7 +77,7 @@ def format_panel_title(brain_area: str, window_name: str) -> str:
 
 def calculate_participation_ratio(explained_variance_ratio: np.ndarray) -> float:
     """Return the participation ratio for one PCA spectrum."""
-    return float((np.sum(explained_variance_ratio) ** 2) / np.sum(explained_variance_ratio ** 2))
+    return ((np.sum(explained_variance_ratio)) ** 2) / np.sum(explained_variance_ratio ** 2)
 
 
 def average_trials_by_stimulus(dataset: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
@@ -103,8 +101,8 @@ def average_trials_by_stimulus(dataset: dict[str, np.ndarray]) -> dict[str, np.n
 
 
 def compute_pca_summary(x: np.ndarray) -> dict[str, np.ndarray | float | int]:
-    """Standardize one population matrix and compute PCA summary statistics."""
-    x_scaled = StandardScaler().fit_transform(x)
+    """Mean-center one population matrix and compute PCA summary statistics."""
+    x_scaled = np.asarray(x, dtype=float) - np.asarray(x, dtype=float).mean(axis=0, keepdims=True)
     pca = PCA()
     scores = pca.fit_transform(x_scaled)
     explained = pca.explained_variance_ratio_
@@ -180,8 +178,8 @@ def add_stimulus_colorbar(fig: plt.Figure, scatter, sound_type: str, stim_array:
     unique_values, first_indices = np.unique(color_values, return_index=True)
     colorbar.set_ticks(unique_values)
     colorbar.set_ticklabels([tick_labels[index] for index in first_indices])
-    colorbar.ax.tick_params(labelsize=8, rotation=35)
-    colorbar.set_label("Stimulus", fontsize=12)
+    colorbar.ax.tick_params(labelsize=22, rotation=35)
+    colorbar.set_label("Stimulus", fontsize=22)
 
 
 def collect_sound_results(

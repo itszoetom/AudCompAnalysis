@@ -19,13 +19,13 @@ Raw HDF databases are converted into shared `.npz` firing-rate arrays, and those
 
 ## Main Files
 
-- `build_firing_rate_arrays.py`
+- `preprocessing/build_firing_rate_arrays.py`
   builds the shared `.npz` firing-rate arrays
-- `params.py`
+- `shared/params.py`
   shared paths, metadata, spike windows, and neuron-count settings
-- `funcs.py`
+- `shared/funcs.py`
   shared data loading, dataset building, subsampling, and CV helpers
-- `plot_stats.py`
+- `shared/plot_stats.py`
   Bonferroni-corrected boxplot annotation helpers
 
 Folders:
@@ -40,7 +40,7 @@ Folders:
 
 ## Typical Run Order
 
-1. `python build_firing_rate_arrays.py`
+1. `python preprocessing/build_firing_rate_arrays.py`
 2. `python methods/run_all.py`
 3. `python pca/run_all.py`
 4. `python ridge/run_all.py`
@@ -54,4 +54,4 @@ Folders:
 
 ## Environment
 
-The code expects local access to `jaratoolbox` plus the HDF databases referenced in `params.py`. Saved `.npz` outputs are written to the configured `dbSavePath`, not into this Git repo.
+The code expects local access to `jaratoolbox` plus the HDF databases referenced in `shared/params.py`. Saved `.npz` outputs are written to the configured `dbSavePath`, not into this Git repo.

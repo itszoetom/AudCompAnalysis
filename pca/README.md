@@ -27,3 +27,5 @@ Population PCA and UMAP figures for the thesis datasets.
 ## Notes
 
 - speech population-style figures exclude dorsal auditory area
+- PCA analyses mean-center each neuron before decomposition
+- UMAP uses the same equal-neuron population datasets without additional scaling

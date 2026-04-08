@@ -15,8 +15,7 @@ import numpy as np
 from matplotlib.patches import Patch
 from jaratoolbox import celldatabase, ephyscore, spikesanalysis
 
-import params
-import funcs
+from shared import funcs, params
 
 try:
     from tqdm.auto import tqdm
@@ -41,17 +40,8 @@ MIN_TOTAL_EVOKED_SPIKES = {
 }
 EXAMPLE_FIGURES = (
     {
-        "figure_key": "speech",
-        "title": "Speech syllables",
-        "subject": "feat005",
-        "session_date": "2022-02-07",
-        "pdepth": 3020,
-        "database_path": os.path.join(params.DATABASE_PATH, params.SPEECH_STUDY_NAME, "celldb_feat005.h5"),
-        "plot_types": ("FT", "VOT"),
-    },
-    {
         "figure_key": "speechCombined",
-        "title": "Speech tuple-order",
+        "title": "Speech syllables",
         "subject": "feat005",
         "session_date": "2022-02-07",
         "pdepth": 3020,
@@ -92,15 +82,15 @@ def window_plot_config(plot_type: str) -> dict[str, np.ndarray | tuple[float, ..
     """Return plotting limits plus onset/sustained/offset markers for one sound type."""
     if plot_type in {"FT", "VOT"}:
         periods = params.speech_allPeriods[1:]
-        return {"time_range": np.array([-0.5, 1.0]), "markers": tuple(period[0] for period in periods) + (periods[-1][1],)}
+        return {"time_range": np.array([-0.5, 1.0]), "windows": periods}
     if plot_type == "pureTones":
         periods = params.PT_allPeriods[1:]
-        return {"time_range": np.array([-0.1, 0.4]), "markers": tuple(period[0] for period in periods) + (periods[-1][1],)}
+        return {"time_range": np.array([-0.1, 0.4]), "windows": periods}
     if plot_type == "AM":
         periods = params.AM_allPeriods[1:]
-        return {"time_range": np.array([-0.5, 1.0]), "markers": tuple(period[0] for period in periods) + (periods[-1][1],)}
+        return {"time_range": np.array([-0.5, 1.0]), "windows": periods}
     periods = params.natSounds_allPeriods[1:]
-    return {"time_range": np.array([-2.0, 6.0]), "markers": tuple(period[0] for period in periods) + (periods[-1][1],)}
+    return {"time_range": np.array([-2.0, 6.0]), "windows": periods}
 
 
 def get_output_dir() -> Path:
@@ -228,12 +218,10 @@ def raster_ylabel(plot_type: str) -> str:
 
 def add_window_shading(ax, plot_type: str) -> None:
     """Draw onset/sustained/offset windows as subtle shaded regions."""
-    markers = window_plot_config(plot_type)["markers"]
+    windows = window_plot_config(plot_type)["windows"]
     colors = ("#e9c46a", "#2a9d8f", "#e76f51")
-    for start, stop, color in zip(markers[:-1], markers[1:], colors):
+    for (start, stop), color in zip(windows, colors):
         ax.axvspan(start, stop, color=color, alpha=0.08, zorder=0)
-    for marker, color in zip(markers, ("#e9c46a", "#2a9d8f", "#e76f51", "#e76f51")):
-        ax.axvline(marker, color=color, linestyle="--", linewidth=1.2, alpha=0.9, zorder=1)
 
 def add_figure_window_legend(fig) -> None:
     """Add one readable figure-level legend for onset/sustained/offset windows."""
@@ -250,7 +238,7 @@ def add_figure_window_legend(fig) -> None:
         fancybox=False,
         edgecolor="0.8",
         facecolor="white",
-        fontsize=10,
+        fontsize=22,
         ncol=3,
         handlelength=1.5,
         columnspacing=1.4,
@@ -294,7 +282,7 @@ def plot_colored_raster(ax, spike_times_from_onset, index_limits, trials_each_ty
     ax.set_xlim(time_range[0], time_range[1])
     ax.set_ylim(0.5, max(y_position - 0.5, 1.5))
     ax.set_yticks(y_ticks)
-    ax.set_yticklabels(y_labels, fontsize=7)
+    ax.set_yticklabels(y_labels, fontsize=22)
 
 
 def trial_spike_times(spike_times_from_onset: np.ndarray, index_limits: np.ndarray, trial_number: int) -> np.ndarray:
@@ -396,7 +384,7 @@ def find_best_cell_indices(session_df, config: dict[str, object]) -> list[int]:
                 index_limits,
                 bins_start,
                 trials_each_type,
-                response_stop=float(plot_config["markers"][-1]),
+                response_stop=float(plot_config["windows"][-1][1]),
                 plot_type=plot_type,
             )
             valid_plot = True
@@ -417,8 +405,8 @@ def find_best_cell_indices(session_df, config: dict[str, object]) -> list[int]:
 def create_figure_axes(plot_types: tuple[str, ...]) -> tuple[plt.Figure, np.ndarray]:
     """Return a clean axes layout for one sound-specific PSTH figure."""
     if len(plot_types) == 1:
-        return plt.subplots(1, 2, figsize=(11.5, 6.6), constrained_layout=True, squeeze=False)
-    return plt.subplots(2, 2, figsize=(12.5, 10.0), constrained_layout=True, squeeze=False)
+        return plt.subplots(1, 2, figsize=(10.8, 6.0), constrained_layout=True, squeeze=False)
+    return plt.subplots(2, 2, figsize=(11.2, 8.6), constrained_layout=True, squeeze=False)
 
 
 def main() -> None:
@@ -442,7 +430,7 @@ def main() -> None:
             fig, axes = create_figure_axes(config["plot_types"])
             fig.suptitle(
                 f"{config['title']} example raster and PSTH (cell {cell_index})",
-                fontsize=17,
+                fontsize=26,
                 fontweight="bold",
             )
             add_figure_window_legend(fig)
@@ -474,13 +462,13 @@ def main() -> None:
                 if plot_type == "speechTuples":
                     raster_title = "Speech tuple-order raster"
                     psth_title = "Speech tuple-order PSTH"
-                raster_ax.set_title(raster_title, fontsize=15)
+                raster_ax.set_title(raster_title, fontsize=24)
                 raster_ax.set_xlabel("Time from stimulus onset (s)")
                 raster_ax.set_ylabel(raster_ylabel(plot_type))
                 add_window_shading(raster_ax, plot_type)
 
                 plot_colored_psth(psth_ax, spike_times_from_onset, index_limits, bins_start, plot_trials_each_type, plot_labels)
-                psth_ax.set_title(psth_title, fontsize=15)
+                psth_ax.set_title(psth_title, fontsize=24)
                 psth_ax.set_xlabel("Time from stimulus onset (s)")
                 psth_ax.set_ylabel("Firing rate (spikes/s)")
                 psth_ax.grid(axis="y", linestyle="--", linewidth=0.5, alpha=0.25)
