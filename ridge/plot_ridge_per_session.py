@@ -1,4 +1,10 @@
-"""Create per-session ridge R2 distributions across brain regions for each spike window."""
+"""Create per-session ridge R² distributions and diagnostic figures.
+
+Three figures are produced per sound type:
+  1. Per-session R² boxplot (one box per brain region, stats annotations).
+  2. Alpha tuning curves (brain-area rows × window columns, peak marked).
+  3. Good-fit vs poor-fit predicted-vs-actual scatter (PT and AM only).
+"""
 
 from __future__ import annotations
 
@@ -13,6 +19,7 @@ from sklearn.model_selection import KFold
 from sklearn.preprocessing import StandardScaler
 
 from shared import params
+
 try:
     from tqdm.auto import tqdm
 except ImportError:  # pragma: no cover
@@ -30,7 +37,10 @@ try:
         available_mice,
         available_sessions,
         build_dataset,
+        build_population_target_datasets,
         build_target_datasets,
+        compute_ridge_alpha_tuning,
+        fit_best_ridge,
         funcs,
         get_plot_brain_regions,
         list_available_sound_types,
@@ -48,7 +58,10 @@ except ImportError:
         available_mice,
         available_sessions,
         build_dataset,
+        build_population_target_datasets,
         build_target_datasets,
+        compute_ridge_alpha_tuning,
+        fit_best_ridge,
         funcs,
         get_plot_brain_regions,
         list_available_sound_types,
@@ -56,6 +69,10 @@ except ImportError:
         WINDOW_ORDER,
     )
 
+
+# ---------------------------------------------------------------------------
+# Session eligibility helpers
+# ---------------------------------------------------------------------------
 
 def _eligible_sessions_for_area(
     sound_type: str,
@@ -87,10 +104,14 @@ def collect_eligible_sessions(
     }
 
 
+# ---------------------------------------------------------------------------
+# Figure 1: per-session R² frame
+# ---------------------------------------------------------------------------
+
 def build_session_frame(
     sound_type: str,
     n_neurons: int | None = None,
-    n_subsamples: int = 100,
+    n_subsamples: int = 50,
     selected_sessions: dict[str, Iterable[tuple[str, str]]] | None = None,
 ) -> pd.DataFrame:
     """Return one mean per-session ridge score after eligible-session and neuron subsampling."""
@@ -189,102 +210,281 @@ def build_session_frame(
     return pd.DataFrame(records)
 
 
-def plot_ridge_alpha_summary(
-    sound_type: str,
-    results_df: pd.DataFrame,
-    *,
-    session_counts: dict[str, int],
-) -> None:
-    """Save one appendix-style alpha summary figure for per-session ridge."""
-    if results_df.empty:
-        return
+# ---------------------------------------------------------------------------
+# Figure 2: alpha tuning grid
+# ---------------------------------------------------------------------------
 
+def plot_ridge_alpha_tuning_grid(sound_type: str) -> None:
+    """Plot alpha tuning curves in a brain-area-rows × window-columns grid.
+
+    Matches the SVM C-tuning figure style: one panel per (brain area, window),
+    viridis line color, peak alpha marked with a red dot and annotation.
+    """
     brain_regions = get_plot_brain_regions(sound_type)
+    if not brain_regions:
+        return
     display_name = SOUND_DISPLAY_NAMES.get(sound_type, sound_type)
+    n_rows = len(brain_regions)
+    n_cols = len(WINDOW_ORDER)
+
     fig, axes = plt.subplots(
-        1,
-        len(WINDOW_ORDER),
-        figsize=(5.5 * len(WINDOW_ORDER), 5.2),
+        n_rows,
+        n_cols,
+        figsize=(5.5 * n_cols, 5.2 * n_rows),
         squeeze=False,
-        sharey=True,
         constrained_layout=True,
     )
-    fig.suptitle(f"Regularization Parameter Selection — {display_name}", fontsize=FONTSIZE_SUPTITLE, fontweight="bold")
-    region_palette = sns.color_palette("viridis", n_colors=len(brain_regions))
+    fig.suptitle(
+        f"Ridge Regularization Tuning — {display_name}",
+        fontsize=FONTSIZE_SUPTITLE,
+        fontweight="bold",
+    )
 
-    for col_index, window_name in enumerate(WINDOW_ORDER):
-        ax = axes[0, col_index]
-        panel_df = results_df[results_df["Window"] == window_name].copy()
-        if panel_df.empty:
-            ax.axis("off")
-            continue
+    for row_index, brain_area in enumerate(brain_regions):
+        for col_index, window_name in enumerate(WINDOW_ORDER):
+            ax = axes[row_index, col_index]
+            records = compute_ridge_alpha_tuning(sound_type, window_name, brain_area)
+            if not records:
+                ax.axis("off")
+                continue
+            df = pd.DataFrame(records)
+            # One target per panel after the speech-tuple fix in compute_ridge_alpha_tuning
+            for _, target_df in df.groupby("Target"):
+                mean_r2_by_alpha = target_df.groupby("Alpha")["R2"].mean()
+                log_alphas = np.log10(mean_r2_by_alpha.index.values.astype(float))
+                ax.plot(
+                    log_alphas,
+                    mean_r2_by_alpha.values,
+                    marker="o",
+                    markersize=7,
+                    linewidth=2.0,
+                    color=plt.cm.viridis(0.45),
+                )
+                best_idx = int(np.argmax(mean_r2_by_alpha.values))
+                best_alpha = float(mean_r2_by_alpha.index.values[best_idx])
+                best_r2 = float(mean_r2_by_alpha.values[best_idx])
+                ax.scatter(
+                    [np.log10(best_alpha)],
+                    [best_r2],
+                    color="tab:red",
+                    s=120,
+                    zorder=4,
+                    edgecolor="white",
+                    linewidth=1.2,
+                )
+                # Fixed right-middle position so label never overlaps the curve
+                ax.text(
+                    0.97, 0.5,
+                    f"α = {best_alpha:.2g}",
+                    ha="right",
+                    va="center",
+                    fontsize=FONTSIZE_LABEL,
+                    color="tab:red",
+                    transform=ax.transAxes,
+                )
 
-        sns.boxplot(
-            data=panel_df,
-            x="Brain Area",
-            y="Best Alpha",
-            hue="Brain Area",
-            order=brain_regions,
-            hue_order=brain_regions,
-            width=0.5,
-            fliersize=2,
-            linewidth=1,
-            palette=region_palette,
-            legend=False,
-            ax=ax,
-        )
-        sns.stripplot(
-            data=panel_df,
-            x="Brain Area",
-            y="Best Alpha",
-            order=brain_regions,
-            color="black",
-            alpha=0.35,
-            size=3,
-            ax=ax,
-        )
-        ax.set_yscale("log")
-        ax.set_title(window_name.capitalize(), fontsize=FONTSIZE_TITLE, fontweight="bold")
-        ax.set_xlabel("")
-        ax.set_ylabel("Ridge Regularization Parameter (α)" if col_index == 0 else "", fontsize=FONTSIZE_LABEL)
-        ax.grid(axis="y", linestyle="--", linewidth=0.5, alpha=0.25)
-        ax.set_xticks(range(len(brain_regions)))
-        ax.set_xticklabels(
-            [
-                f"{params.short_names.get(region, region)}\n(n={session_counts.get(region, 0)})"
-                for region in brain_regions
-            ],
-            rotation=20,
-            fontsize=FONTSIZE_LABEL,
-        )
-        ax.tick_params(axis="y", labelsize=FONTSIZE_LABEL)
-        sns.despine(ax=ax)
+            # Column header: window name only on top row
+            if row_index == 0:
+                ax.set_title(window_name.capitalize(), fontsize=FONTSIZE_TITLE, fontweight="bold")
 
-    fig.savefig(funcs.get_figure_dir("decoding/ridge") / f"{sound_type}_ridge_per_session_alpha.png", dpi=300)
+            ax.set_xlabel(r"$\log_{10}(\alpha)$", fontsize=FONTSIZE_LABEL)
+
+            # Row label: brain region only on left column
+            if col_index == 0:
+                short_area = params.short_names.get(brain_area, brain_area)
+                ax.set_ylabel(
+                    f"{short_area}\nMean $R^2$ (CV)",
+                    fontsize=FONTSIZE_LABEL,
+                    fontweight="bold",
+                )
+            else:
+                ax.set_ylabel("")
+
+            ax.tick_params(labelsize=FONTSIZE_LABEL)
+            ax.grid(linestyle="--", linewidth=0.5, alpha=0.35)
+            sns.despine(ax=ax)
+
+    fig.savefig(
+        funcs.get_figure_dir("decoding/ridge") / f"{sound_type}_ridge_alpha_tuning.png",
+        dpi=300,
+    )
     plt.close(fig)
 
 
+# ---------------------------------------------------------------------------
+# Figure 3: good-fit vs poor-fit scatter (PT and AM)
+# ---------------------------------------------------------------------------
+
+def _collect_fit_examples(sound_types: list[str], window_name: str = "sustained") -> list[dict]:
+    """Run population ridge for the given sound types (one window) and collect all fits."""
+    results = []
+    for sound_type in tqdm(sound_types, desc="Collecting fit examples", unit="sound", dynamic_ncols=True):
+        brain_regions = get_plot_brain_regions(sound_type)
+        for brain_area in brain_regions:
+            target_datasets = build_population_target_datasets(sound_type, window_name, brain_area)
+            for td in target_datasets:
+                fit = fit_best_ridge(
+                    td["X"],
+                    td["Y"],
+                    log_target=bool(td["log_target"]),
+                )
+                results.append({
+                    "sound_type": sound_type,
+                    "brain_area": brain_area,
+                    "window_name": window_name,
+                    "target_name": td["target_name"],
+                    "r2": fit["r2_test"],
+                    "y_true": fit["y_test"],
+                    "y_pred": fit["y_pred"],
+                })
+    return results
+
+
+def _select_good_bad_pair(fits: list[dict]) -> tuple[dict, dict] | None:
+    """Select one poor-fit and one good-fit example from different brain regions if possible."""
+    if len(fits) < 2:
+        return None
+    sorted_fits = sorted(fits, key=lambda x: x["r2"])
+    # Prefer examples from different brain areas
+    for bad in sorted_fits[: max(1, len(sorted_fits) // 2 + 1)]:
+        for good in reversed(sorted_fits):
+            if good["brain_area"] != bad["brain_area"]:
+                return bad, good
+    # Fallback: just use worst and best regardless of area
+    return sorted_fits[0], sorted_fits[-1]
+
+
+def plot_ridge_fit_examples(sound_types: list[str] | None = None) -> None:
+    """Plot a 2x2 predicted-vs-actual grid: PT (top) and AM (bottom), poor left and good right.
+
+    Both examples for each sound type come from the sustained window, preferably different
+    brain regions.  X and Y axis limits are matched within each panel so the identity line
+    spans the full square.
+    """
+    sound_types = sound_types or ["PT", "AM"]
+    examples = _collect_fit_examples(sound_types, window_name="sustained")
+    if not examples:
+        return
+
+    # Group by sound_type
+    by_sound: dict[str, list[dict]] = {}
+    for ex in examples:
+        by_sound.setdefault(ex["sound_type"], []).append(ex)
+
+    rows: list[tuple[dict, dict]] = []
+    row_sound_types: list[str] = []
+    for st in sound_types:
+        pair = _select_good_bad_pair(by_sound.get(st, []))
+        if pair is not None:
+            rows.append(pair)
+            row_sound_types.append(st)
+
+    if not rows:
+        return
+
+    n_rows = len(rows)
+    fig, axes = plt.subplots(
+        n_rows, 2,
+        figsize=(13.0, 6.0 * n_rows),
+        constrained_layout=True,
+    )
+    if n_rows == 1:
+        axes = axes[np.newaxis, :]
+    fig.suptitle(
+        "Ridge Regression: Predicted vs Actual (Sustained)",
+        fontsize=FONTSIZE_SUPTITLE,
+        fontweight="bold",
+    )
+
+    for row_idx, ((bad_example, good_example), sound_type) in enumerate(zip(rows, row_sound_types)):
+        display_name = SOUND_DISPLAY_NAMES.get(sound_type, sound_type)
+        for col_idx, (example, panel_label) in enumerate(
+            [(bad_example, "Poor Fit"), (good_example, "Good Fit")]
+        ):
+            ax = axes[row_idx, col_idx]
+            y_true = np.asarray(example["y_true"], dtype=float)
+            y_pred = np.asarray(example["y_pred"], dtype=float)
+            r2 = float(example["r2"])
+
+            ax.scatter(
+                y_true,
+                y_pred,
+                color=plt.cm.viridis(0.45),
+                alpha=0.7,
+                s=55,
+                edgecolor="white",
+                linewidth=0.5,
+            )
+            # Equal axis limits so the identity line is a true diagonal
+            lim_min = min(float(y_true.min()), float(y_pred.min()))
+            lim_max = max(float(y_true.max()), float(y_pred.max()))
+            pad = (lim_max - lim_min) * 0.05
+            ax.set_xlim(lim_min - pad, lim_max + pad)
+            ax.set_ylim(lim_min - pad, lim_max + pad)
+            ax.plot([lim_min - pad, lim_max + pad], [lim_min - pad, lim_max + pad],
+                    "k--", linewidth=1.5, alpha=0.7)
+
+            short_area = params.short_names.get(example["brain_area"], example["brain_area"])
+            ax.set_title(
+                f"{display_name} — {panel_label} ({short_area})",
+                fontsize=FONTSIZE_TITLE,
+                fontweight="bold",
+            )
+            ax.set_xlabel("Actual", fontsize=FONTSIZE_LABEL)
+            ax.set_ylabel("Predicted" if col_idx == 0 else "", fontsize=FONTSIZE_LABEL)
+            ax.text(
+                0.05, 0.95,
+                f"$R^2$ = {r2:.2f}",
+                transform=ax.transAxes,
+                ha="left", va="top",
+                fontsize=FONTSIZE_LABEL,
+            )
+            ax.tick_params(labelsize=FONTSIZE_LABEL)
+            ax.set_aspect("equal", adjustable="box")
+            sns.despine(ax=ax)
+
+    fig.savefig(
+        funcs.get_figure_dir("decoding/ridge") / "ridge_fit_examples_PT_AM.png",
+        dpi=300,
+    )
+    plt.close(fig)
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+
 def main() -> None:
-    """Run per-session ridge boxplot figures."""
+    """Run the three ridge regression figures."""
     apply_figure_style()
-    for sound_type in tqdm(list_available_sound_types(), desc="Per-session ridge plots", unit="sound", dynamic_ncols=True):
-        print(f"Running per-session ridge plots for {sound_type}...")
+
+    for sound_type in tqdm(list_available_sound_types(), desc="Ridge plots", unit="sound", dynamic_ncols=True):
+        print(f"\n--- {sound_type} ---")
         n_neurons = params.NEURONS_PER_SESSION[sound_type]
         selected_sessions = collect_eligible_sessions(sound_type, n_neurons)
+
+        # Figure 1: per-session R² boxplot
         results_df = build_session_frame(sound_type, n_neurons=n_neurons, selected_sessions=selected_sessions)
-        if results_df.empty:
-            continue
-        session_counts = {brain_area: len(list(sessions)) for brain_area, sessions in selected_sessions.items()}
-        display_name = SOUND_DISPLAY_NAMES.get(sound_type, sound_type)
-        plot_ridge_summary(
-            sound_type,
-            results_df,
-            title=f"Per-Session Ridge Regression Decoding — {display_name}",
-            filename=f"{sound_type}_ridge_per_session.png",
-            pair_cols=["Mouse", "Session"],
-            session_counts=session_counts,
-        )
-        plot_ridge_alpha_summary(sound_type, results_df, session_counts=session_counts)
+        if not results_df.empty:
+            session_counts = {
+                brain_area: len(list(sessions))
+                for brain_area, sessions in selected_sessions.items()
+            }
+            display_name = SOUND_DISPLAY_NAMES.get(sound_type, sound_type)
+            plot_ridge_summary(
+                sound_type,
+                results_df,
+                title=f"Per-Session Ridge Regression — {display_name}",
+                filename=f"{sound_type}_ridge_per_session.png",
+                pair_cols=["Mouse", "Session"],
+                session_counts=session_counts,
+            )
+
+        # Figure 2: alpha tuning grid
+        plot_ridge_alpha_tuning_grid(sound_type)
+
+    # Figure 3: good/bad fit scatter for PT and AM
+    plot_ridge_fit_examples(["PT", "AM"])
 
 
 if __name__ == "__main__":

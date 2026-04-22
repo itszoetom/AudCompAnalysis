@@ -164,14 +164,36 @@ def add_pairwise_annotations(
     data_max: float,
     data_min: float,
     line_height_scale: float = 0.03,
+    hue_colors: dict[str, str] | None = None,
+    group_name_map: dict[str, str] | None = None,
+    step_multiplier: float = 1.0,
+    bracket_lw: float = 1.5,
+    star_fontsize: float = 18,
+    bracket_hue_order: list[str] | None = None,
 ) -> None:
-    """Draw significance brackets above boxplots."""
+    """Draw significance brackets above boxplots.
+
+    Parameters
+    ----------
+    hue_colors:
+        Optional mapping of hue value → bracket/text color. Defaults to black.
+    group_name_map:
+        Optional mapping of full group name → short label shown on the bracket.
+    step_multiplier:
+        Scales the vertical gap between stacked brackets (default 1.0 = original spacing).
+    """
     if stats_df.empty:
         return
 
     sig_df = stats_df[stats_df["p_corrected"] < 0.05]
     if sig_df.empty:
         return
+
+    if bracket_hue_order is not None:
+        import pandas as _pd
+        sig_df = sig_df.copy()
+        sig_df["_hue_rank"] = sig_df["hue"].map({h: i for i, h in enumerate(bracket_hue_order)})
+        sig_df = sig_df.sort_values("_hue_rank").drop(columns="_hue_rank")
 
     data_range = data_max - data_min
     step = line_height_scale * (data_range if data_range > 0 else 1.0)
@@ -180,10 +202,28 @@ def add_pairwise_annotations(
     for offset_index, row in enumerate(sig_df.itertuples(index=False), start=1):
         x1 = centers[(row.group_left, row.hue)]
         x2 = centers[(row.group_right, row.hue)]
-        bracket_y = base_y + step * (offset_index - 1)
+        bracket_y = base_y + step * step_multiplier * (offset_index - 1)
         star_text = significance_stars(float(row.p_corrected))
-        ax.plot([x1, x1, x2, x2], [bracket_y, bracket_y + step / 2, bracket_y + step / 2, bracket_y], lw=1.2, c="black", clip_on=False)
-        ax.text((x1 + x2) / 2, bracket_y + step / 2, star_text, ha="center", va="bottom", fontsize=22)
+        color = "black" if hue_colors is None else hue_colors.get(row.hue, "black")
+
+        ax.plot(
+            [x1, x1, x2, x2],
+            [bracket_y, bracket_y + step / 2, bracket_y + step / 2, bracket_y],
+            lw=bracket_lw, c=color, clip_on=False,
+        )
+
+        if group_name_map is not None:
+            left_lbl = group_name_map.get(row.group_left, row.group_left)
+            right_lbl = group_name_map.get(row.group_right, row.group_right)
+            label = f"{star_text}  {left_lbl}–{right_lbl}"
+        else:
+            label = star_text
+
+        ax.text(
+            (x1 + x2) / 2, bracket_y + step / 2,
+            label, ha="center", va="bottom",
+            fontsize=star_fontsize, color=color,
+        )
 
 
 def add_within_group_hue_annotations(

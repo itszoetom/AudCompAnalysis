@@ -13,7 +13,7 @@ from sklearn.preprocessing import StandardScaler
 
 from shared import params
 
-RIDGE_ALPHAS = np.logspace(-10, 5, 200)
+RIDGE_ALPHAS = np.logspace(-5, 10, 200)
 RIDGE_N_SPLITS = 5
 DISCRIMINABILITY_SVM_C_VALUES = np.logspace(-5, 4, 20)
 
@@ -149,6 +149,11 @@ def apply_figure_style() -> None:
             "figure.titlesize": 26,
         },
     )
+    # Explicitly reinforce Times New Roman after seaborn theme so it is never
+    # silently overridden by a subsequent rcParams reset elsewhere.
+    import matplotlib as _mpl
+    _mpl.rcParams["font.family"] = "serif"
+    _mpl.rcParams["font.serif"] = ["Times New Roman", "Times", "DejaVu Serif"]
 
 
 def trial_indices_from_selector(selector: np.ndarray, n_trials: int) -> np.ndarray:

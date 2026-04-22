@@ -39,7 +39,7 @@ DEFAULT_SCATTER_KWARGS = {"s": 24, "alpha": 0.85, "linewidths": 0}
 # Font size hierarchy: figure suptitle > panel titles > axis labels
 FONTSIZE_SUPTITLE = 38
 FONTSIZE_TITLE = 34
-FONTSIZE_LABEL = 30
+FONTSIZE_LABEL = 32
 
 
 def get_figure_dir() -> Path:
@@ -155,7 +155,7 @@ def plot_scree(
     ax.text(
         0.98,
         0.95,
-        f"PR = {pca_summary['participation_ratio']:.2f}\nn = {pca_summary['n_neurons']}",
+        f"PR = {pca_summary['participation_ratio']:.2f}",
         ha="right",
         va="top",
         fontsize=FONTSIZE_LABEL,
@@ -166,15 +166,16 @@ def plot_scree(
 
 
 def shared_scatter_limits(results: dict[tuple[str, str], dict[str, np.ndarray]]) -> tuple[float, float, float, float]:
-    """Compute common PC axis limits for one figure."""
+    """Compute common PC axis limits for one figure with padding so no points are clipped."""
     x_values = [panel["summary"]["scores"][:, 0] for panel in results.values()]
     y_values = [panel["summary"]["scores"][:, 1] for panel in results.values()]
-    return (
-        min(values.min() for values in x_values),
-        max(values.max() for values in x_values),
-        min(values.min() for values in y_values),
-        max(values.max() for values in y_values),
-    )
+    x_min = min(values.min() for values in x_values)
+    x_max = max(values.max() for values in x_values)
+    y_min = min(values.min() for values in y_values)
+    y_max = max(values.max() for values in y_values)
+    x_pad = (x_max - x_min) * 0.07
+    y_pad = (y_max - y_min) * 0.07
+    return x_min - x_pad, x_max + x_pad, y_min - y_pad, y_max + y_pad
 
 
 def add_stimulus_colorbar(fig: plt.Figure, scatter, sound_type: str, stim_array: np.ndarray) -> None:

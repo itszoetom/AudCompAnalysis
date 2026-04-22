@@ -23,7 +23,11 @@ except ImportError:  # pragma: no cover
     def tqdm(iterable=None, *args, total=None, **kwargs):
         return iterable if iterable is not None else range(total or 0)
 
-plt.rcParams.update({"font.family": "serif", "font.serif": ["Times New Roman", "Times", "DejaVu Serif"]})
+FONTSIZE_SUPTITLE = 26
+FONTSIZE_TITLE = 22
+FONTSIZE_LABEL = 20
+FONTSIZE_TICK = 18
+FONTSIZE_LEGEND = 20
 
 N_CELLS_TO_PLOT = 1
 MAX_CELLS_TO_SCORE = 128
@@ -80,7 +84,7 @@ EXAMPLE_FIGURES = (
 
 def window_plot_config(plot_type: str) -> dict[str, np.ndarray | tuple[float, ...]]:
     """Return plotting limits plus onset/sustained/offset markers for one sound type."""
-    if plot_type in {"FT", "VOT"}:
+    if plot_type in {"FT", "VOT", "speechTuples"}:
         periods = params.speech_allPeriods[1:]
         return {"time_range": np.array([-0.5, 1.0]), "windows": periods}
     if plot_type == "pureTones":
@@ -223,7 +227,7 @@ def add_window_shading(ax, plot_type: str) -> None:
     for (start, stop), color in zip(windows, colors):
         ax.axvspan(start, stop, color=color, alpha=0.08, zorder=0)
 
-def add_figure_window_legend(fig) -> None:
+def add_figure_window_legend(fig, legend_y: float = 0.96) -> None:
     """Add one readable figure-level legend for onset/sustained/offset windows."""
     handles = [
         Patch(facecolor="#e9c46a", edgecolor="#e9c46a", alpha=0.22, label="Onset"),
@@ -233,12 +237,12 @@ def add_figure_window_legend(fig) -> None:
     fig.legend(
         handles=handles,
         loc="upper center",
-        bbox_to_anchor=(0.5, 0.96),
+        bbox_to_anchor=(0.5, legend_y),
         frameon=True,
         fancybox=False,
         edgecolor="0.8",
         facecolor="white",
-        fontsize=22,
+        fontsize=FONTSIZE_LEGEND,
         ncol=3,
         handlelength=1.5,
         columnspacing=1.4,
@@ -282,7 +286,7 @@ def plot_colored_raster(ax, spike_times_from_onset, index_limits, trials_each_ty
     ax.set_xlim(time_range[0], time_range[1])
     ax.set_ylim(0.5, max(y_position - 0.5, 1.5))
     ax.set_yticks(y_ticks)
-    ax.set_yticklabels(y_labels, fontsize=22)
+    ax.set_yticklabels(y_labels, fontsize=FONTSIZE_TICK)
 
 
 def trial_spike_times(spike_times_from_onset: np.ndarray, index_limits: np.ndarray, trial_number: int) -> np.ndarray:
@@ -409,8 +413,142 @@ def create_figure_axes(plot_types: tuple[str, ...]) -> tuple[plt.Figure, np.ndar
     return plt.subplots(2, 2, figsize=(11.2, 8.6), constrained_layout=True, squeeze=False)
 
 
+_COMBINED_PANEL_ORDER = ["pureTones", "AM", "naturalSound", "speechCombined"]
+_COMBINED_PLOT_TYPES = {
+    "pureTones": "pureTones",
+    "AM": "AM",
+    "naturalSound": "naturalSound",
+    "speechCombined": "speechTuples",
+}
+_COMBINED_PANEL_LABELS = ["A", "B", "C", "D"]
+# For each panel, pick this rank from the sorted candidate list (0 = best scorer).
+# Speech uses rank 1 to avoid the most hyper-reactive cell.
+_COMBINED_CELL_RANK = {
+    "pureTones": 0,
+    "AM": 0,
+    "naturalSound": 0,
+    "speechCombined": 1,
+}
+
+
+def build_combined_psth_figure() -> None:
+    """Create a combined 2×2 panel figure (PT/AM top row, NS/Speech bottom row).
+
+    Each panel occupies two columns of the underlying 2×4 axes grid:
+    col 0-1 = left panel (raster, PSTH), col 2-3 = right panel (raster, PSTH).
+    """
+    panel_configs = {c["figure_key"]: c for c in EXAMPLE_FIGURES if c["figure_key"] in _COMBINED_PANEL_ORDER}
+    ordered_configs = [panel_configs[key] for key in _COMBINED_PANEL_ORDER if key in panel_configs]
+
+    # 2 grid rows × 4 cols: each sound type owns one (raster, PSTH) column pair
+    # Extra figure height (13.5 vs 11.6) gives headroom at the top for the
+    # suptitle + legend without cramping the subplots.
+    fig, axes = plt.subplots(
+        2,
+        4,
+        figsize=(22.0, 13.5),
+        squeeze=False,
+    )
+    # Reserve the top 14 % of the figure for suptitle + legend; subplots fill the rest.
+    fig.subplots_adjust(top=0.86, bottom=0.05, left=0.05, right=0.98, hspace=0.45, wspace=0.35)
+    fig.suptitle(
+        "Example auditory cortex single-neuron responses",
+        fontsize=FONTSIZE_SUPTITLE,
+        fontweight="bold",
+        y=0.98,
+    )
+    add_figure_window_legend(fig, legend_y=0.95)
+
+    for panel_index, config in enumerate(ordered_configs):
+        plot_type = _COMBINED_PLOT_TYPES[config["figure_key"]]
+        panel_label = _COMBINED_PANEL_LABELS[panel_index]
+        grid_row = panel_index // 2
+        raster_col = (panel_index % 2) * 2
+        psth_col = raster_col + 1
+        raster_ax = axes[grid_row, raster_col]
+        psth_ax = axes[grid_row, psth_col]
+
+        # Panel letter in upper-left corner of the raster axis
+        raster_ax.text(
+            -0.10, 1.04, panel_label,
+            transform=raster_ax.transAxes,
+            fontsize=FONTSIZE_SUPTITLE,
+            fontweight="bold",
+            va="bottom",
+            ha="right",
+        )
+
+        session_df = load_session_dataframe(config)
+        if session_df.empty:
+            raster_ax.axis("off")
+            psth_ax.axis("off")
+            continue
+
+        best_cell_indices = find_best_cell_indices(session_df, config)
+        if not best_cell_indices:
+            raster_ax.axis("off")
+            psth_ax.axis("off")
+            continue
+
+        desired_rank = _COMBINED_CELL_RANK.get(config["figure_key"], 0)
+        cell_rank = min(desired_rank, len(best_cell_indices) - 1)
+        one_cell = ephyscore.Cell(session_df.iloc[best_cell_indices[cell_rank]])
+
+        try:
+            (
+                spike_times_from_onset,
+                index_limits,
+                bins_start,
+                plot_config,
+                trials_each_type,
+                labels,
+            ) = load_plot_data(one_cell, plot_type)
+        except Exception as exc:
+            print(f"[combined figure] skipping {config['figure_key']} {plot_type}: {type(exc).__name__}: {exc}")
+            raster_ax.axis("off")
+            psth_ax.axis("off")
+            continue
+
+        plot_trials_each_type, plot_labels = maybe_subset_conditions(plot_type, trials_each_type, labels)
+
+        if plot_type == "speechTuples":
+            raster_title = "Speech syllable raster"
+            psth_title = "Speech syllable PSTH"
+        else:
+            raster_title = f"{config['title']} raster"
+            psth_title = f"{config['title']} PSTH"
+
+        plot_colored_raster(
+            raster_ax,
+            spike_times_from_onset,
+            index_limits,
+            plot_trials_each_type,
+            plot_labels,
+            plot_config["time_range"],
+            plot_type,
+        )
+        raster_ax.set_title(raster_title, fontsize=FONTSIZE_TITLE, fontweight="bold")
+        raster_ax.set_xlabel("Time from stimulus onset (s)", fontsize=FONTSIZE_LABEL)
+        raster_ax.set_ylabel(raster_ylabel(plot_type), fontsize=FONTSIZE_LABEL)
+        raster_ax.tick_params(labelsize=FONTSIZE_TICK)
+        add_window_shading(raster_ax, plot_type)
+
+        plot_colored_psth(psth_ax, spike_times_from_onset, index_limits, bins_start, plot_trials_each_type, plot_labels)
+        psth_ax.set_title(psth_title, fontsize=FONTSIZE_TITLE, fontweight="bold")
+        psth_ax.set_xlabel("Time from stimulus onset (s)", fontsize=FONTSIZE_LABEL)
+        psth_ax.set_ylabel("Firing rate (spikes/s)", fontsize=FONTSIZE_LABEL)
+        psth_ax.tick_params(labelsize=FONTSIZE_TICK)
+        psth_ax.grid(axis="y", linestyle="--", linewidth=0.5, alpha=0.25)
+        add_window_shading(psth_ax, plot_type)
+
+    fig.savefig(get_output_dir() / "combined_psth_figure2.png", dpi=250)
+    print("[combined figure] saved combined_psth_figure2.png")
+    plt.close(fig)
+
+
 def main() -> None:
     """Run the example single-cell PSTH figure generation."""
+    funcs.apply_figure_style()
     for config in EXAMPLE_FIGURES:
         print(
             f"Preparing {config['figure_key']} example "
@@ -430,7 +568,7 @@ def main() -> None:
             fig, axes = create_figure_axes(config["plot_types"])
             fig.suptitle(
                 f"{config['title']} example raster and PSTH (cell {cell_index})",
-                fontsize=26,
+                fontsize=FONTSIZE_SUPTITLE,
                 fontweight="bold",
             )
             add_figure_window_legend(fig)
@@ -462,15 +600,17 @@ def main() -> None:
                 if plot_type == "speechTuples":
                     raster_title = "Speech tuple-order raster"
                     psth_title = "Speech tuple-order PSTH"
-                raster_ax.set_title(raster_title, fontsize=24)
-                raster_ax.set_xlabel("Time from stimulus onset (s)")
-                raster_ax.set_ylabel(raster_ylabel(plot_type))
+                raster_ax.set_title(raster_title, fontsize=FONTSIZE_TITLE, fontweight="bold")
+                raster_ax.set_xlabel("Time from stimulus onset (s)", fontsize=FONTSIZE_LABEL)
+                raster_ax.set_ylabel(raster_ylabel(plot_type), fontsize=FONTSIZE_LABEL)
+                raster_ax.tick_params(labelsize=FONTSIZE_TICK)
                 add_window_shading(raster_ax, plot_type)
 
                 plot_colored_psth(psth_ax, spike_times_from_onset, index_limits, bins_start, plot_trials_each_type, plot_labels)
-                psth_ax.set_title(psth_title, fontsize=24)
-                psth_ax.set_xlabel("Time from stimulus onset (s)")
-                psth_ax.set_ylabel("Firing rate (spikes/s)")
+                psth_ax.set_title(psth_title, fontsize=FONTSIZE_TITLE, fontweight="bold")
+                psth_ax.set_xlabel("Time from stimulus onset (s)", fontsize=FONTSIZE_LABEL)
+                psth_ax.set_ylabel("Firing rate (spikes/s)", fontsize=FONTSIZE_LABEL)
+                psth_ax.tick_params(labelsize=FONTSIZE_TICK)
                 psth_ax.grid(axis="y", linestyle="--", linewidth=0.5, alpha=0.25)
                 add_window_shading(psth_ax, plot_type)
 
@@ -483,6 +623,9 @@ def main() -> None:
                 f"{config['subject']}_{config['session_date']}_{config['figure_key']}_cell_{cell_index}_psth.png"
             )
             plt.close(fig)
+
+    print("Building combined Figure 2 (A/B/C/D)...")
+    build_combined_psth_figure()
 
 
 if __name__ == "__main__":

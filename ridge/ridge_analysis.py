@@ -31,7 +31,7 @@ SOUND_DISPLAY_NAMES = params.SOUND_DISPLAY_NAMES
 # Font size hierarchy matching project-wide style
 FONTSIZE_SUPTITLE = 38
 FONTSIZE_TITLE = 32
-FONTSIZE_LABEL = 28
+FONTSIZE_LABEL = 34
 SOUND_FILE_KEYS = params.SOUND_FILE_KEYS
 RIDGE_ALPHAS = funcs.RIDGE_ALPHAS
 apply_figure_style = funcs.apply_figure_style
@@ -97,6 +97,56 @@ def build_population_target_datasets(
     if dataset is None:
         return []
     return build_target_datasets(dataset)
+
+
+def compute_ridge_alpha_tuning(
+    sound_type: str,
+    window_name: str,
+    brain_area: str,
+) -> list[dict[str, object]]:
+    """Sweep every RIDGE_ALPHAS value on the population dataset and record mean CV R².
+
+    For each alpha the full 5-fold ridge pipeline is run with that single alpha
+    fixed (no internal alpha search), giving a tuning curve analogous to the SVM
+    C-parameter tuning.  Speech uses a single tuple-form target for consistency
+    with the per-session analysis.  Returns one record per (target × alpha).
+    """
+    dataset = funcs.build_population_dataset(sound_type, window_name, brain_area)
+    if dataset is None:
+        return []
+
+    if sound_type == "speech":
+        target_datasets = [
+            {
+                "target_name": "Speech Tuple",
+                "X": dataset["X"],
+                "Y": funcs.labels_for_sound("speech", dataset["Y"]).astype(float),
+                "log_target": False,
+            }
+        ]
+    else:
+        target_datasets = build_target_datasets(dataset)
+
+    records = []
+    for td in target_datasets:
+        for alpha in RIDGE_ALPHAS:
+            fit = fit_best_ridge(
+                td["X"],
+                td["Y"],
+                log_target=bool(td["log_target"]),
+                alphas=np.array([float(alpha)]),
+            )
+            records.append(
+                {
+                    "Sound Type": sound_type,
+                    "Brain Area": brain_area,
+                    "Window": window_name,
+                    "Target": td["target_name"],
+                    "Alpha": float(alpha),
+                    "R2": float(fit["r2_test"]),
+                }
+            )
+    return records
 
 
 def iter_population_datasets(
@@ -214,7 +264,7 @@ def plot_ridge_summary(
     fig, axes = plt.subplots(
         1,
         len(WINDOW_ORDER),
-        figsize=(5.5 * len(WINDOW_ORDER), 5.2),
+        figsize=(7.5 * len(WINDOW_ORDER), 6.0),
         squeeze=False,
         sharey=True,
         constrained_layout=True,
@@ -284,20 +334,6 @@ def plot_ridge_summary(
         ax.set_title(window_name.capitalize(), fontsize=FONTSIZE_TITLE, fontweight="bold")
         ax.set_xlabel("")
         ax.set_ylabel("$R^2$" if col_index == 0 else "", fontsize=FONTSIZE_LABEL)
-        panel_r2 = float(panel_df["R2 Test"].mean())
-        panel_rmse = float(panel_df["RMSE"].mean()) if "RMSE" in panel_df else np.nan
-        panel_alpha = float(panel_df["Best Alpha"].mean()) if "Best Alpha" in panel_df else np.nan
-        summary_text = f"mean $R^2$={panel_r2:.2f}\nmean RMSE={panel_rmse:.2f}\nmean $\\alpha$={panel_alpha:.2g}"
-        ax.text(
-            0.02,
-            0.98,
-            summary_text,
-            transform=ax.transAxes,
-            ha="left",
-            va="top",
-            fontsize=FONTSIZE_LABEL,
-            bbox={"facecolor": "white", "edgecolor": "0.85", "alpha": 0.9, "pad": 2.5},
-        )
         x_tick_labels = []
         for region in brain_regions:
             label = params.short_names.get(region, region)
