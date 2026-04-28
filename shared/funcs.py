@@ -25,7 +25,7 @@ from sklearn.preprocessing import StandardScaler
 
 from shared import params
 
-RIDGE_ALPHAS = np.logspace(-5, 10, 200)
+RIDGE_ALPHAS = np.logspace(-10, 5, 200)  # 200 values from 10⁻¹⁰ to 10⁵ (thesis Section 3.3.1)
 RIDGE_N_SPLITS = 5
 DISCRIMINABILITY_SVM_C_VALUES = np.logspace(-5, 4, 20)
 
