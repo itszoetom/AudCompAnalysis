@@ -1,4 +1,14 @@
-"""Shared paths, dataset metadata, spike windows, and plotting settings."""
+"""Shared paths, dataset metadata, spike window definitions, and plotting settings.
+
+Spike windows (relative to stimulus onset):
+  Pure tones   — onset [0, 50 ms], sustained [50, 100 ms], offset [100, 150 ms]
+  AM / Speech  — onset [0, 200 ms], sustained [200, 500 ms], offset [500, 700 ms]
+  Natural sound— onset [0, 500 ms], sustained [1000, 4000 ms], offset [4000, 4500 ms]
+
+Population neuron counts used for all subsampled analyses:
+  Non-speech (PT, AM, natural sounds): 278 neurons per subregion
+  Speech: 99 neurons per subregion (AudD excluded due to insufficient count)
+"""
 
 from __future__ import annotations
 
@@ -18,7 +28,7 @@ WINDOW_TO_KEY = {
 }
 SOUND_DISPLAY_NAMES = {
     "speech": "Speech",
-    "AM": "AM",
+    "AM": "AM White Noise",
     "PT": "Pure Tones",
     "naturalSound": "Natural Sounds",
 }

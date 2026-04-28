@@ -1,57 +1,68 @@
-# Auditory Cortex Population Analysis
+# Distributed Processing of Sounds Across Mouse Auditory Cortical Subregions
 
-Population-level auditory-cortex analyses for the Murray Lab thesis project.
+Code for the thesis: *Distributed Processing of Sounds Across Mouse Auditory Cortical Subregions* (Zoe Tomlinson, University of Oregon, 2026). Publicly available at https://github.com/itszoetom/AudCompAnalysis.
 
-The repo combines:
-- a speech dataset with FT/VOT continua (`speech`)
-- a non-speech dataset with pure tones (`PT`), AM white noise (`AM`), and natural sounds (`naturalSound`)
+Neural population recordings from mouse auditory cortex (AudP, AudD, AudV, AudPo) are analyzed across four stimulus categories — pure tones (PT), amplitude-modulated white noise (AM), environmental natural sounds, and synthetic speech syllables — using encoding (PCA) and decoding (ridge regression, pairwise linear SVM) analyses.
 
-Raw HDF databases are converted into shared `.npz` firing-rate arrays, and those arrays are reused across methods figures, PCA/UMAP, ridge regression, and discriminability analyses.
+## Datasets
 
-## Experimental Design
+| Dataset | Subjects | Stimuli | Regions |
+|---|---|---|---|
+| Simple sounds | feat014–feat019 | 16 PT frequencies (2–40 kHz), 11 AM rates (4–128 Hz) | AudP, AudD, AudV, AudPo |
+| Complex sounds | feat014–feat019 (natural), feat004–feat010 (speech) | 20 natural sounds (5 categories × 4 exemplars), 12 speech syllables (VOT × FT grid) | AudP, AudD, AudV, AudPo (AudD excluded from speech) |
 
-- Speech subjects: `feat004` to `feat010`
-- Non-speech subjects: `feat014` to `feat019`
-- Brain regions: `Primary`, `Dorsal`, `Ventral`, `Posterior`
-- Population neuron counts:
-  - speech: `99` per region
-  - non-speech: `278` per region
+Raw spike data are stored in HDF databases managed by the Jaramillo Lab. All analysis uses pre-built `.npz` firing-rate arrays (see `shared/build_firing_rate_arrays.py`).
 
-## Main Files
+## Repository Structure
 
-- `preprocessing/build_firing_rate_arrays.py`
-  builds the shared `.npz` firing-rate arrays
-- `shared/params.py`
-  shared paths, metadata, spike windows, and neuron-count settings
-- `shared/funcs.py`
-  shared data loading, dataset building, subsampling, and CV helpers
-- `shared/plot_stats.py`
-  Bonferroni-corrected boxplot annotation helpers
+```
+shared/
+  params.py                  — paths, stimulus metadata, spike window definitions, neuron counts
+  funcs.py                   — data loading, dataset building, subsampling, CV pipelines
+  plot_stats.py              — Mann-Whitney U / Bonferroni boxplot annotation helpers
+  build_firing_rate_arrays.py — converts HDF databases to shared .npz arrays
 
-Folders:
-- `methods/`
-  descriptive figures
-- `pca/`
-  PCA and UMAP figures
-- `ridge/`
-  ridge decoding figures
-- `discriminability/`
-  Pearson, linear-SVM, and LDA discriminability figures
+methods/                     — Figure 2: single-cell raster and PSTH examples
+pca/                         — Figures 3–6: population PCA scatter plots and scree plots
+ridge/                       — Figures 7–8, S6–S8: per-session ridge regression decoding
+discriminability/            — Figures 9–11, S9–S13: pairwise linear SVM discriminability
 
-## Typical Run Order
+figures/
+  make_c_panel.py            — standalone waveform schematic for Figure 1C
 
-1. `python preprocessing/build_firing_rate_arrays.py`
-2. `python methods/run_all.py`
-3. `python pca/run_all.py`
-4. `python ridge/run_all.py`
-5. `python discriminability/run_all.py`
+settings.py                  — local jaratoolbox path configuration (not analysis code)
+```
 
-## Notes
+## Spike Windows
 
-- Paper-style figures use serif fonts and consistent region naming.
-- Boxplot annotations use Mann-Whitney U tests with Bonferroni correction in the current thesis-facing figures.
-- Natural-sound discriminability also includes within- vs. between-category summaries.
+Firing rates are computed over three non-overlapping windows per stimulus:
+
+| Sound | Onset | Sustained | Offset |
+|---|---|---|---|
+| Pure tones | 0–50 ms | 50–100 ms | 100–150 ms |
+| AM / Speech | 0–200 ms | 200–500 ms | 500–700 ms |
+| Natural sounds | 0–500 ms | 1000–4000 ms | 4000–4500 ms |
+
+## Population Neuron Counts
+
+Neurons are randomly subsampled to a fixed count before all population analyses to ensure region comparisons are not confounded by sample size:
+- Non-speech (PT, AM, natural sounds): **278 neurons** per subregion
+- Speech: **99 neurons** per subregion (AudD excluded due to insufficient count)
+
+## Run Order
+
+```bash
+python shared/build_firing_rate_arrays.py   # build .npz arrays from HDF databases (run once)
+python methods/run_all.py                   # Figure 2
+python pca/run_all.py                       # Figures 3–6, S2–S5
+python ridge/run_all.py                     # Figures 7–8, S6–S8
+python discriminability/run_all.py          # Figures 9–11, S9–S13
+```
+
+## Statistical Analysis
+
+All pairwise subregion comparisons within each sound type and spike window use **unpaired Mann-Whitney U tests with Bonferroni correction** for multiple comparisons. Significance is annotated with bracket-and-star notation (∗ p < 0.05, ∗∗ p < 0.01, ∗∗∗ p < 0.001).
 
 ## Environment
 
-The code expects local access to `jaratoolbox` plus the HDF databases referenced in `shared/params.py`. Saved `.npz` outputs are written to the configured `dbSavePath`, not into this Git repo.
+Requires Python ≥ 3.10, a local `jaratoolbox` copy (bundled under `jaratoolbox/`), and the HDF databases referenced in `shared/params.py`. Figures are written to the path configured in `params.figSavePath`; `.npz` arrays go to `params.dbSavePath`. Neither is committed to this repository.

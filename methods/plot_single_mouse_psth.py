@@ -23,11 +23,11 @@ except ImportError:  # pragma: no cover
     def tqdm(iterable=None, *args, total=None, **kwargs):
         return iterable if iterable is not None else range(total or 0)
 
-FONTSIZE_SUPTITLE = 26
-FONTSIZE_TITLE = 22
-FONTSIZE_LABEL = 20
-FONTSIZE_TICK = 18
-FONTSIZE_LEGEND = 20
+FONTSIZE_SUPTITLE = 38
+FONTSIZE_TITLE = 34
+FONTSIZE_LABEL = 32
+FONTSIZE_TICK = 28
+FONTSIZE_LEGEND = 28
 
 N_CELLS_TO_PLOT = 1
 MAX_CELLS_TO_SCORE = 128
@@ -225,14 +225,14 @@ def add_window_shading(ax, plot_type: str) -> None:
     windows = window_plot_config(plot_type)["windows"]
     colors = ("#e9c46a", "#2a9d8f", "#e76f51")
     for (start, stop), color in zip(windows, colors):
-        ax.axvspan(start, stop, color=color, alpha=0.08, zorder=0)
+        ax.axvspan(start, stop, color=color, alpha=0.18, zorder=0)
 
 def add_figure_window_legend(fig, legend_y: float = 0.96) -> None:
     """Add one readable figure-level legend for onset/sustained/offset windows."""
     handles = [
-        Patch(facecolor="#e9c46a", edgecolor="#e9c46a", alpha=0.22, label="Onset"),
-        Patch(facecolor="#2a9d8f", edgecolor="#2a9d8f", alpha=0.22, label="Sustained"),
-        Patch(facecolor="#e76f51", edgecolor="#e76f51", alpha=0.22, label="Offset"),
+        Patch(facecolor="#e9c46a", edgecolor="#e9c46a", alpha=0.40, label="Onset"),
+        Patch(facecolor="#2a9d8f", edgecolor="#2a9d8f", alpha=0.40, label="Sustained"),
+        Patch(facecolor="#e76f51", edgecolor="#e76f51", alpha=0.40, label="Offset"),
     ]
     fig.legend(
         handles=handles,
@@ -541,8 +541,10 @@ def build_combined_psth_figure() -> None:
         psth_ax.grid(axis="y", linestyle="--", linewidth=0.5, alpha=0.25)
         add_window_shading(psth_ax, plot_type)
 
-    fig.savefig(get_output_dir() / "combined_psth_figure2.png", dpi=250)
-    print("[combined figure] saved combined_psth_figure2.png")
+    out_png = get_output_dir() / "combined_psth_figure2.png"
+    fig.savefig(out_png, dpi=250, bbox_inches="tight")
+    fig.savefig(out_png.with_suffix(".svg"), bbox_inches="tight")
+    print("[combined figure] saved combined_psth_figure2.png + .svg")
     plt.close(fig)
 
 
@@ -614,14 +616,11 @@ def main() -> None:
                 psth_ax.grid(axis="y", linestyle="--", linewidth=0.5, alpha=0.25)
                 add_window_shading(psth_ax, plot_type)
 
-            fig.savefig(
-                get_output_dir() / f"{config['subject']}_{config['session_date']}_{config['figure_key']}_cell_{cell_index}_psth.png",
-                dpi=250,
-            )
-            print(
-                f"[{config['figure_key']}] saved "
-                f"{config['subject']}_{config['session_date']}_{config['figure_key']}_cell_{cell_index}_psth.png"
-            )
+            stem = f"{config['subject']}_{config['session_date']}_{config['figure_key']}_cell_{cell_index}_psth"
+            out_png = get_output_dir() / f"{stem}.png"
+            fig.savefig(out_png, dpi=250, bbox_inches="tight")
+            fig.savefig(out_png.with_suffix(".svg"), bbox_inches="tight")
+            print(f"[{config['figure_key']}] saved {stem}.png + .svg")
             plt.close(fig)
 
     print("Building combined Figure 2 (A/B/C/D)...")

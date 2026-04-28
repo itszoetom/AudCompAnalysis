@@ -9,6 +9,7 @@ from typing import Iterable
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 import seaborn as sns
 
 try:
@@ -25,14 +26,12 @@ from shared import funcs, params  # noqa: E402
 from shared.plot_stats import add_pairwise_annotations, box_centers, pairwise_group_tests  # noqa: E402
 
 WINDOW_ORDER = params.WINDOW_ORDER
-WINDOW_TO_KEY = params.WINDOW_TO_KEY
 SOUND_DISPLAY_NAMES = params.SOUND_DISPLAY_NAMES
 
 # Font size hierarchy matching project-wide style
 FONTSIZE_SUPTITLE = 38
-FONTSIZE_TITLE = 32
+FONTSIZE_TITLE = 34
 FONTSIZE_LABEL = 34
-SOUND_FILE_KEYS = params.SOUND_FILE_KEYS
 RIDGE_ALPHAS = funcs.RIDGE_ALPHAS
 apply_figure_style = funcs.apply_figure_style
 build_dataset = funcs.build_dataset
@@ -251,8 +250,6 @@ def plot_ridge_summary(
     filename: str,
     pair_cols: list[str],
     session_counts: dict[str, int] | None = None,
-    neurons_per_session: int | None = None,
-    strip_alpha: float = 0.35,
 ) -> None:
     """Plot one standard ridge region-comparison summary figure."""
     if results_df.empty:
@@ -264,12 +261,12 @@ def plot_ridge_summary(
     fig, axes = plt.subplots(
         1,
         len(WINDOW_ORDER),
-        figsize=(7.5 * len(WINDOW_ORDER), 6.0),
+        figsize=(6.5 * len(WINDOW_ORDER), 7.0),
         squeeze=False,
         sharey=True,
-        constrained_layout=True,
     )
-    fig.suptitle(title, fontsize=FONTSIZE_SUPTITLE, fontweight="bold")
+    fig.subplots_adjust(left=0.11, right=0.97, top=0.84, bottom=0.20)
+    fig.suptitle(title, fontsize=FONTSIZE_SUPTITLE, fontweight="bold", y=0.97)
     y_min = float(results_df["R2 Test"].min())
     y_max = float(results_df["R2 Test"].max())
     max_annotations = len(target_order) * (len(brain_regions) * (len(brain_regions) - 1) // 2)
@@ -288,9 +285,9 @@ def plot_ridge_summary(
             "x": "Brain Area",
             "y": "R2 Test",
             "order": brain_regions,
-            "width": 0.5,
-            "fliersize": 2,
-            "linewidth": 1,
+            "width": 0.24,
+            "showfliers": False,
+            "linewidth": 1.2,
             "ax": ax,
         }
         strip_kwargs = {
@@ -299,8 +296,8 @@ def plot_ridge_summary(
             "y": "R2 Test",
             "order": brain_regions,
             "dodge": use_hue,
-            "size": 3,
-            "alpha": strip_alpha,
+            "size": 4,
+            "alpha": 0.70,
             "ax": ax,
         }
         if not use_hue:
@@ -334,13 +331,14 @@ def plot_ridge_summary(
         ax.set_title(window_name.capitalize(), fontsize=FONTSIZE_TITLE, fontweight="bold")
         ax.set_xlabel("")
         ax.set_ylabel("$R^2$" if col_index == 0 else "", fontsize=FONTSIZE_LABEL)
-        x_tick_labels = []
-        for region in brain_regions:
-            label = params.short_names.get(region, region)
-            if session_counts is not None and region in session_counts:
-                label = f"{label}\n(n={session_counts[region]})"
-            x_tick_labels.append(label)
-        ax.set_xticklabels(x_tick_labels, rotation=20, fontsize=FONTSIZE_LABEL)
+        ax.set_xticks(range(len(brain_regions)))
+        if use_hue:
+            ax.set_xticklabels(
+                [params.short_names.get(r, r) for r in brain_regions],
+                rotation=20, fontsize=FONTSIZE_LABEL,
+            )
+        else:
+            ax.set_xticklabels([""] * len(brain_regions))
         ax.tick_params(axis="y", labelsize=FONTSIZE_LABEL)
         ax.grid(axis="y", linestyle="--", linewidth=0.5, alpha=0.25)
         ax.set_ylim(y_min - y_step, y_max + y_step * (max_annotations + 2))
@@ -348,6 +346,28 @@ def plot_ridge_summary(
     if use_hue:
         handles, labels = axes[0, 0].get_legend_handles_labels()
         if handles:
-            fig.legend(handles[: len(target_order)], labels[: len(target_order)], title="Target", loc="upper right", frameon=False)
-    fig.savefig(get_output_dir() / filename, dpi=300)
+            fig.legend(
+                handles[: len(target_order)], labels[: len(target_order)],
+                title="Target", loc="upper right", frameon=True,
+                facecolor="white", edgecolor="0.75", fontsize=FONTSIZE_LABEL - 8,
+            )
+    else:
+        _pal = sns.color_palette("viridis", n_colors=len(brain_regions))
+        legend_handles = []
+        for i, r in enumerate(brain_regions):
+            lbl = params.short_names.get(r, r)
+            if session_counts and r in session_counts:
+                lbl = f"{lbl} (n={session_counts[r]})"
+            legend_handles.append(mpatches.Patch(facecolor=_pal[i], edgecolor="black", linewidth=0.8, label=lbl))
+        fig.legend(
+            handles=legend_handles,
+            loc="lower center",
+            bbox_to_anchor=(0.54, 0.01),
+            ncol=len(brain_regions),
+            fontsize=FONTSIZE_LABEL - 8,
+            frameon=True,
+            facecolor="white",
+            edgecolor="0.4",
+        )
+    fig.savefig(get_output_dir() / filename, dpi=300, bbox_inches="tight")
     plt.close(fig)

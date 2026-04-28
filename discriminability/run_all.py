@@ -1,5 +1,8 @@
-"""Run the full discriminability analysis and plotting pipeline
-Takes 39 minutes to run"""
+"""Run the full discriminability analysis and plotting pipeline.
+
+Runs Pearson, linear SVM, and LDA analyses in sequence, then generates all figures.
+Expected runtime: ~30–40 minutes depending on hardware.
+"""
 
 from __future__ import annotations
 

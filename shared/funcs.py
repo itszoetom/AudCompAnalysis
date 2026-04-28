@@ -1,3 +1,15 @@
+"""Shared data loading, dataset building, subsampling, and cross-validation helpers.
+
+All analysis modules import from this file rather than reimplementing these utilities.
+Key responsibilities:
+  - load_sound_npz: cached loading of .npz firing-rate arrays built by build_firing_rate_arrays.py
+  - build_dataset / build_population_dataset / build_sampled_dataset: construct trial × neuron
+    matrices for a given sound type, spike window, and brain region
+  - run_ridge_cv: standardized 5-fold ridge regression pipeline with inner RidgeCV alpha tuning
+  - run_loo_classifier_cv: leave-one-out classifier pipeline used by discriminability analyses
+  - apply_figure_style: sets the shared serif/paper-style matplotlib theme used across all figures
+"""
+
 from __future__ import annotations
 
 from functools import lru_cache
