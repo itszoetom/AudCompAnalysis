@@ -1,6 +1,6 @@
-# Distributed Processing of Sounds Across Mouse Auditory Cortical Subregions
+# Functional Specialization Across Mouse Auditory Cortical Subregions
 
-Code for the thesis: *Distributed Processing of Sounds Across Mouse Auditory Cortical Subregions* (Zoe Tomlinson, University of Oregon, 2026). Publicly available at https://github.com/itszoetom/AudCompAnalysis.
+Code for the thesis: *Functional Specialization Across Mouse Auditory Cortical Subregions* (Zoe Tomlinson, University of Oregon, 2026). Publicly available at https://github.com/itszoetom/AudCompAnalysis.
 
 Neural population recordings from mouse auditory cortex are analyzed across four stimulus categories using encoding (PCA) and decoding (ridge regression, pairwise linear SVM) analyses to characterize how different auditory cortical subregions specialize for processing sounds of varying complexity.
 
