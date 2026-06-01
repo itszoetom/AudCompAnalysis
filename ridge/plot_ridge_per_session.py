@@ -27,6 +27,7 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 from shared import params
+from shared.plot_stats import pairwise_group_tests
 
 try:
     from tqdm.auto import tqdm
@@ -40,8 +41,8 @@ try:
         RIDGE_ALPHAS, SOUND_DISPLAY_NAMES, apply_figure_style,
         available_mice, available_sessions, build_dataset,
         build_target_datasets, compute_ridge_alpha_tuning,
-        fit_best_ridge, funcs, get_plot_brain_regions,
-        plot_ridge_summary, WINDOW_ORDER,
+        fit_best_ridge, format_stats_table, funcs, get_output_dir,
+        get_plot_brain_regions, plot_ridge_summary, WINDOW_ORDER,
     )
 except ImportError:
     from ridge_analysis import (
@@ -49,8 +50,8 @@ except ImportError:
         RIDGE_ALPHAS, SOUND_DISPLAY_NAMES, apply_figure_style,
         available_mice, available_sessions, build_dataset,
         build_target_datasets, compute_ridge_alpha_tuning,
-        fit_best_ridge, funcs, get_plot_brain_regions,
-        plot_ridge_summary, WINDOW_ORDER,
+        fit_best_ridge, format_stats_table, funcs, get_output_dir,
+        get_plot_brain_regions, plot_ridge_summary, WINDOW_ORDER,
     )
 
 
@@ -159,7 +160,7 @@ def plot_ridge_alpha_tuning_grid(sound_type: str) -> None:
     brain_regions = get_plot_brain_regions(sound_type)
     if not brain_regions:
         return
-    n_rows, n_cols = len(brain_regions), len(WINDOW_ORDER)
+    n_rows, n_cols = len(WINDOW_ORDER), len(brain_regions)
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(6.0 * n_cols, 5.5 * n_rows),
                              squeeze=False, constrained_layout=True)
     fig.suptitle(f"Ridge Regularization Tuning: {SOUND_DISPLAY_NAMES.get(sound_type, sound_type)}",
@@ -167,7 +168,7 @@ def plot_ridge_alpha_tuning_grid(sound_type: str) -> None:
 
     for ri, brain_area in enumerate(brain_regions):
         for ci, window_name in enumerate(WINDOW_ORDER):
-            ax = axes[ri, ci]
+            ax = axes[ci, ri]
             records = compute_ridge_alpha_tuning(sound_type, window_name, brain_area)
             if not records:
                 ax.axis("off")
@@ -185,12 +186,12 @@ def plot_ridge_alpha_tuning_grid(sound_type: str) -> None:
                 ax.text(0.97, 0.5, f"α = {alpha_str}", ha="right", va="center",
                         fontsize=FONTSIZE_LABEL - 6, color="tab:red", transform=ax.transAxes)
 
-            if ri == 0:
-                ax.set_title(window_name.capitalize(), fontsize=FONTSIZE_TITLE, fontweight="bold")
-            ax.set_xlabel(r"$\log_{10}(\alpha)$", fontsize=FONTSIZE_LABEL)
             if ci == 0:
                 short = params.short_names.get(brain_area, brain_area)
-                ax.set_ylabel(rf"$\bf{{{short}}}$" + "\nMean $R^2$ (CV)", fontsize=FONTSIZE_LABEL)
+                ax.set_title(rf"$\bf{{{short}}}$", fontsize=FONTSIZE_TITLE, fontweight="normal")
+            ax.set_xlabel(r"$\log_{10}(\alpha)$", fontsize=FONTSIZE_LABEL)
+            if ri == 0:
+                ax.set_ylabel(rf"$\bf{{{window_name.capitalize()}}}$" + "\nMean $R^2$ (CV)", fontsize=FONTSIZE_LABEL)
             else:
                 ax.set_ylabel("")
             ax.tick_params(labelsize=FONTSIZE_LABEL)

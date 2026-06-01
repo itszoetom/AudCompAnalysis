@@ -275,7 +275,13 @@ def plot_svm_hyperparameter_tuning(tuning_df: pd.DataFrame) -> None:
             continue
         output_dir = figure_output_dir(sound_type, "linearSVM")
         brain_regions = funcs.get_plot_brain_regions(sound_type)
-        fig, axes = make_sound_figure(sound_type, width_scale=6.0, height_scale=5.5)
+        n_windows = len(params.WINDOW_ORDER)
+        n_regions = len(brain_regions)
+        fig, axes = plt.subplots(
+            n_windows, n_regions,
+            figsize=(6.0 * n_regions, 5.5 * n_windows),
+            squeeze=False, constrained_layout=True,
+        )
         fig.suptitle(
             f"Linear SVM Hyperparameter Tuning for {params.SOUND_DISPLAY_NAMES[sound_type]}",
             fontsize=FONTSIZE_SUPTITLE,
@@ -283,7 +289,7 @@ def plot_svm_hyperparameter_tuning(tuning_df: pd.DataFrame) -> None:
         )
         for row_index, brain_area in enumerate(brain_regions):
             for col_index, window_name in enumerate(params.WINDOW_ORDER):
-                ax = axes[row_index, col_index]
+                ax = axes[col_index, row_index]
                 panel_df = sound_df[
                     (sound_df["Brain Area"] == brain_area) & (sound_df["Window"] == window_name)
                 ].copy()
@@ -310,22 +316,22 @@ def plot_svm_hyperparameter_tuning(tuning_df: pd.DataFrame) -> None:
                 )
                 ax.set_xscale("log")
 
-                # Column header: window name only on top row
-                if row_index == 0:
-                    ax.set_title(window_name.capitalize(), fontsize=FONTSIZE_TITLE, fontweight="bold")
+                # Column header: brain area on top row
+                if col_index == 0:
+                    short_area = params.short_names.get(brain_area, brain_area)
+                    bold_region = r"$\bf{" + short_area + r"}$"
+                    ax.set_title(bold_region, fontsize=FONTSIZE_TITLE, fontweight="normal")
 
-                n_rows = len(brain_regions)
-                if row_index == n_rows - 1:
+                if col_index == n_windows - 1:
                     ax.set_xlabel("Regularization Parameter C", fontsize=FONTSIZE_LABEL - 8)
                 else:
                     ax.set_xlabel("")
 
-                # Row label: brain region only on left column
-                if col_index == 0:
-                    short_area = params.short_names.get(brain_area, brain_area)
-                    bold_region = r"$\bf{" + short_area + r"}$"
+                # Row label: window name on left column
+                if row_index == 0:
+                    bold_window = r"$\bf{" + window_name.capitalize() + r"}$"
                     ax.set_ylabel(
-                        f"{bold_region}\nMean Pairwise Accuracy",
+                        f"{bold_window}\nMean Pairwise Accuracy",
                         fontsize=FONTSIZE_LABEL,
                         fontweight="normal",
                     )
@@ -757,8 +763,9 @@ def plot_region_boxplots(
             continue
         output_dir = figure_output_dir(sound_type, method_key)
         brain_regions = funcs.get_plot_brain_regions(sound_type)
-        fig, axes = plt.subplots(1, len(params.WINDOW_ORDER), figsize=(7.5 * len(params.WINDOW_ORDER), 6.0), sharey=True, constrained_layout=True)
-        fig.suptitle(f"Pairwise {method_label} for {params.SOUND_DISPLAY_NAMES[sound_type]}", fontsize=FONTSIZE_SUPTITLE, fontweight="bold")
+        fig, axes = plt.subplots(1, len(params.WINDOW_ORDER), figsize=(7.5 * len(params.WINDOW_ORDER), 6.5), sharey=True)
+        fig.subplots_adjust(left=0.05, right=0.98, top=0.88, bottom=0.22, wspace=0.10)
+        fig.suptitle(f"Pairwise {method_label} for {params.SOUND_DISPLAY_NAMES[sound_type]}", fontsize=FONTSIZE_SUPTITLE, fontweight="bold", y=1.03)
         max_annotations = len(brain_regions) * (len(brain_regions) - 1) // 2
         y_min, y_max, y_step = score_axis_limits(sound_df[value_col])
         region_palette = sns.color_palette("viridis", n_colors=len(brain_regions))
@@ -817,15 +824,19 @@ def plot_region_boxplots(
             mpatches.Patch(facecolor=region_palette[i], label=params.short_names.get(r, r))
             for i, r in enumerate(brain_regions)
         ]
-        np.ravel(axes)[-1].legend(
+        # Legend sits in the reserved bottom margin (subplots_adjust(bottom=0.22))
+        # well below the boxplots' x-tick labels — no overlap possible.
+        fig.legend(
             handles=legend_handles,
-            loc="upper right",
+            loc="lower center",
+            bbox_to_anchor=(0.5, 0.02),
+            ncol=len(brain_regions),
             fontsize=FONTSIZE_LABEL,
             frameon=True,
             facecolor="white",
             edgecolor="0.4",
         )
-        fig.savefig(output_dir / f"{method_key}_{sound_type}_region_boxplots.png", dpi=300)
+        fig.savefig(output_dir / f"{method_key}_{sound_type}_region_boxplots.png", dpi=300, bbox_inches="tight")
         plt.close(fig)
 
 
@@ -932,16 +943,20 @@ def plot_natural_within_between_boxplots(
             ax.tick_params(axis="y", labelsize=11)
             ax.set_ylim(y_min - y_step, y_max + y_step * (max_annotations * 1.4 + 2))
 
-        # Legend inside the sustained (middle) subplot
+        # Horizontal legend in the reserved bottom margin — well below the
+        # boxplots so the legend can't overlap any axes content.
         handles, _ = axes[0].get_legend_handles_labels()
         if handles:
             legend_labels = ["Within category", "Between category"]
-            np.ravel(axes)[1].legend(
+            fig.subplots_adjust(bottom=0.32, top=0.88, wspace=0.15)
+            fig.legend(
                 handles[: len(hue_order)],
                 legend_labels[: len(hue_order)],
-                loc="upper right",
+                loc="lower center",
+                bbox_to_anchor=(0.5, 0.03),
+                ncol=len(hue_order),
                 frameon=False,
-                fontsize=10,
+                fontsize=12,
             )
 
         fig.savefig(

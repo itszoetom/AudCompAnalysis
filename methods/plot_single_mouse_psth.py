@@ -225,7 +225,7 @@ def add_window_shading(ax, plot_type: str) -> None:
     windows = window_plot_config(plot_type)["windows"]
     colors = ("#e9c46a", "#2a9d8f", "#e76f51")
     for (start, stop), color in zip(windows, colors):
-        ax.axvspan(start, stop, color=color, alpha=0.18, zorder=0)
+        ax.axvspan(start, stop, color=color, alpha=0.35, zorder=0)
 
 def add_figure_window_legend(fig, legend_y: float = 0.96) -> None:
     """Add one readable figure-level legend for onset/sustained/offset windows."""

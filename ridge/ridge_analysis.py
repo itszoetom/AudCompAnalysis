@@ -234,6 +234,33 @@ def run_population_ridge(
     return pd.DataFrame(records)
 
 
+def _sig_stars(p: float) -> str:
+    if p < 0.001:
+        return "***"
+    if p < 0.01:
+        return "**"
+    if p < 0.05:
+        return "*"
+    return ""
+
+
+def format_stats_table(stats_df: pd.DataFrame) -> pd.DataFrame:
+    """Annotate a pairwise-test DataFrame for thesis reporting.
+
+    Adds:
+    - sig_uncorrected  — stars based on raw p-value
+    - sig_bonferroni   — stars based on Bonferroni-corrected p-value
+    - trending         — True when p_raw < 0.10 but p_corrected >= 0.05
+    - trend_label      — human-readable string for the trending column
+    """
+    df = stats_df.copy()
+    df["sig_uncorrected"] = df["p_raw"].apply(_sig_stars)
+    df["sig_bonferroni"] = df["p_corrected"].apply(_sig_stars)
+    df["trending"] = (df["p_raw"] < 0.10) & (df["p_corrected"] >= 0.05)
+    df["trend_label"] = df["trending"].map({True: "trending (p_raw<0.10)", False: ""})
+    return df
+
+
 def target_order_for_sound(sound_type: str, results_df: pd.DataFrame) -> list[str]:
     """Return the plotted ridge target order for one sound."""
     canonical_order = ["FT", "VOT", sound_type, "Speech Tuple"]
@@ -266,12 +293,13 @@ def plot_ridge_summary(
         sharey=True,
     )
     fig.subplots_adjust(left=0.11, right=0.97, top=0.84, bottom=0.20)
-    fig.suptitle(title, fontsize=FONTSIZE_SUPTITLE, fontweight="bold", y=0.97)
+    fig.suptitle(title, fontsize=FONTSIZE_SUPTITLE, fontweight="bold", y=1.03)
     y_min = float(results_df["R2 Test"].min())
     y_max = float(results_df["R2 Test"].max())
     max_annotations = len(target_order) * (len(brain_regions) * (len(brain_regions) - 1) // 2)
     y_step = 0.035 * ((y_max - y_min) if y_max > y_min else 1.0)
 
+    all_stats: list[pd.DataFrame] = []
     for col_index, window_name in enumerate(WINDOW_ORDER):
         ax = axes[0, col_index]
         panel_df = results_df[results_df["Window"] == window_name].copy()
@@ -321,6 +349,11 @@ def plot_ridge_summary(
             pair_cols=pair_cols,
             test_mode="unpaired",
         )
+        if not stats_df.empty:
+            tagged = stats_df.copy()
+            tagged.insert(0, "Sound Type", sound_type)
+            tagged.insert(1, "Window", window_name)
+            all_stats.append(tagged)
         add_pairwise_annotations(
             ax,
             stats_df,
@@ -343,13 +376,22 @@ def plot_ridge_summary(
         ax.grid(axis="y", linestyle="--", linewidth=0.5, alpha=0.25)
         ax.set_ylim(y_min - y_step, y_max + y_step * (max_annotations + 2))
 
+    # Reserve a generous bottom margin so the horizontal legend lives well
+    # beneath the boxplots' x-tick labels — guaranteed no overlap.
+    fig.subplots_adjust(bottom=0.22, top=0.90, left=0.06, right=0.98, wspace=0.10)
+
     if use_hue:
         handles, labels = axes[0, 0].get_legend_handles_labels()
         if handles:
             fig.legend(
                 handles[: len(target_order)], labels[: len(target_order)],
-                title="Target", loc="upper right", frameon=True,
-                facecolor="white", edgecolor="0.75", fontsize=FONTSIZE_LABEL - 8,
+                title="Target",
+                loc="lower center",
+                bbox_to_anchor=(0.5, 0.03),
+                ncol=len(target_order),
+                frameon=True,
+                facecolor="white", edgecolor="0.75",
+                fontsize=FONTSIZE_LABEL - 8,
             )
     else:
         _pal = sns.color_palette("viridis", n_colors=len(brain_regions))
@@ -362,12 +404,17 @@ def plot_ridge_summary(
         fig.legend(
             handles=legend_handles,
             loc="lower center",
-            bbox_to_anchor=(0.54, 0.01),
+            bbox_to_anchor=(0.5, 0.03),
             ncol=len(brain_regions),
             fontsize=FONTSIZE_LABEL - 8,
             frameon=True,
             facecolor="white",
             edgecolor="0.4",
         )
+    if all_stats:
+        stats_combined = format_stats_table(pd.concat(all_stats, ignore_index=True))
+        csv_path = get_output_dir() / filename.replace(".png", "_stats.csv")
+        stats_combined.to_csv(csv_path, index=False)
+
     fig.savefig(get_output_dir() / filename, dpi=300, bbox_inches="tight")
     plt.close(fig)

@@ -57,9 +57,9 @@ def save_projection_figure(sound_type: str, results, target_neurons: int) -> Non
     n_rows = max(row_index for row_index, *_ in panels) + 1
     n_windows = max(col_index for *_, col_index, _ in panels) + 1
     fig, axes = plt.subplots(
-        n_rows,
         n_windows,
-        figsize=(6.0 * n_windows, 5.5 * n_rows),
+        n_rows,
+        figsize=(6.0 * n_rows, 5.5 * n_windows),
         squeeze=False,
         constrained_layout=True,
     )
@@ -69,7 +69,7 @@ def save_projection_figure(sound_type: str, results, target_neurons: int) -> Non
     last_scatter = None
 
     for row_index, brain_area, col_index, window_name in panels:
-        scatter_ax = axes[row_index, col_index]
+        scatter_ax = axes[col_index, row_index]
         panel = results.get((brain_area, window_name))
         if panel is None:
             scatter_ax.axis("off")
@@ -90,19 +90,19 @@ def save_projection_figure(sound_type: str, results, target_neurons: int) -> Non
         scatter_ax.set_xlim(x_min, x_max)
         scatter_ax.set_ylim(y_min, y_max)
 
-        # Column header: window name only on top row
-        if row_index == 0:
-            scatter_ax.set_title(window_name.capitalize(), fontsize=FONTSIZE_SUPTITLE, fontweight="bold")
-
-        # Row label: brain region on left column ylabel; all columns show PC2 %
+        # Column header: brain area on top row
         from shared import params as _params
-        pc2_label = f"PC2 ({explained[1] * 100:.1f}%)"
         if col_index == 0:
             region_label = _params.short_names.get(brain_area, brain_area)
-            # Use mathtext bold for region name so PC2 sub-label stays normal weight
             bold_region = r"$\bf{" + region_label + r"}$"
+            scatter_ax.set_title(bold_region, fontsize=FONTSIZE_SUPTITLE, fontweight="normal")
+
+        # Row label: window name on left column ylabel; all columns show PC2 %
+        pc2_label = f"PC2 ({explained[1] * 100:.1f}%)"
+        if row_index == 0:
+            bold_window = r"$\bf{" + window_name.capitalize() + r"}$"
             scatter_ax.set_ylabel(
-                f"{bold_region}\n{pc2_label}",
+                f"{bold_window}\n{pc2_label}",
                 fontsize=FONTSIZE_SUPTITLE,
                 fontweight="normal",
             )
@@ -132,9 +132,9 @@ def save_scree_figure(sound_type: str, results, target_neurons: int) -> None:
     n_rows = max(row_index for row_index, *_ in panels) + 1
     n_windows = max(col_index for *_, col_index, _ in panels) + 1
     fig, axes = plt.subplots(
-        n_rows,
         n_windows,
-        figsize=(6.0 * n_windows, 5.5 * n_rows),
+        n_rows,
+        figsize=(6.0 * n_rows, 5.5 * n_windows),
         squeeze=False,
         constrained_layout=True,
     )
@@ -143,29 +143,28 @@ def save_scree_figure(sound_type: str, results, target_neurons: int) -> None:
     scree_ymax = max(float(panel["summary"]["explained_variance_ratio"][0]) * 100 for panel in results.values()) * 1.05
 
     for row_index, brain_area, col_index, window_name in panels:
-        scree_ax = axes[row_index, col_index]
+        scree_ax = axes[col_index, row_index]
         panel = results.get((brain_area, window_name))
         if panel is None:
             scree_ax.axis("off")
             continue
         summary = panel["summary"]
 
-        # Column header: window name only on top row
-        title = window_name.capitalize() if row_index == 0 else ""
-        plot_scree(scree_ax, summary, title, y_max=scree_ymax)
+        # Column header: brain area on top row
+        plot_scree(scree_ax, summary, "", y_max=scree_ymax)
 
-        # Bump up window title font size after plot_scree sets it
-        if row_index == 0:
-            scree_ax.title.set_fontsize(FONTSIZE_SUPTITLE)
-
-        # Row label: brain region only on left column; remove ylabel from other columns
         from shared import params as _params
         if col_index == 0:
-            existing_ylabel = scree_ax.get_ylabel()
             region_label = _params.short_names.get(brain_area, brain_area)
             bold_region = r"$\bf{" + region_label + r"}$"
+            scree_ax.set_title(bold_region, fontsize=FONTSIZE_SUPTITLE, fontweight="normal")
+
+        # Row label: window name on left column; remove ylabel from other columns
+        if row_index == 0:
+            existing_ylabel = scree_ax.get_ylabel()
+            bold_window = r"$\bf{" + window_name.capitalize() + r"}$"
             scree_ax.set_ylabel(
-                f"{bold_region}\n{existing_ylabel}",
+                f"{bold_window}\n{existing_ylabel}",
                 fontsize=FONTSIZE_SUPTITLE,
                 fontweight="normal",
             )
