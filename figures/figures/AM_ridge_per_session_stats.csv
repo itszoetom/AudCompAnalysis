@@ -1,0 +1,19 @@
+Sound Type,Window,hue,group_left,group_right,p_raw,test,p_corrected,sig_uncorrected,sig_bonferroni,trending,trend_label
+AM,onset,,Primary auditory area,Dorsal auditory area,0.04525844525844526,mannwhitneyu,0.2715506715506716,*,,True,trending (p_raw<0.10)
+AM,onset,,Dorsal auditory area,Ventral auditory area,0.12973610496830312,mannwhitneyu,0.7784166298098187,,,False,
+AM,onset,,Dorsal auditory area,Posterior auditory area,0.14285714285714285,mannwhitneyu,0.8571428571428571,,,False,
+AM,onset,,Primary auditory area,Posterior auditory area,0.6484615384615385,mannwhitneyu,1.0,,,False,
+AM,onset,,Primary auditory area,Ventral auditory area,0.18428762443008162,mannwhitneyu,1.0,,,False,
+AM,onset,,Ventral auditory area,Posterior auditory area,0.7120743034055728,mannwhitneyu,1.0,,,False,
+AM,sustained,,Primary auditory area,Dorsal auditory area,0.05288970288970289,mannwhitneyu,0.3173382173382173,,,True,trending (p_raw<0.10)
+AM,sustained,,Dorsal auditory area,Posterior auditory area,0.14285714285714285,mannwhitneyu,0.8571428571428571,,,False,
+AM,sustained,,Dorsal auditory area,Ventral auditory area,0.17897685389945453,mannwhitneyu,1.0,,,False,
+AM,sustained,,Primary auditory area,Posterior auditory area,0.7623076923076924,mannwhitneyu,1.0,,,False,
+AM,sustained,,Primary auditory area,Ventral auditory area,0.33882352060948284,mannwhitneyu,1.0,,,False,
+AM,sustained,,Ventral auditory area,Posterior auditory area,0.4210526315789474,mannwhitneyu,1.0,,,False,
+AM,offset,,Dorsal auditory area,Ventral auditory area,0.09101184333382477,mannwhitneyu,0.5460710600029486,,,True,trending (p_raw<0.10)
+AM,offset,,Primary auditory area,Dorsal auditory area,0.13722018722018722,mannwhitneyu,0.8233211233211233,,,False,
+AM,offset,,Dorsal auditory area,Posterior auditory area,0.14285714285714285,mannwhitneyu,0.8571428571428571,,,False,
+AM,offset,,Primary auditory area,Posterior auditory area,0.88,mannwhitneyu,1.0,,,False,
+AM,offset,,Primary auditory area,Ventral auditory area,0.6580867814457259,mannwhitneyu,1.0,,,False,
+AM,offset,,Ventral auditory area,Posterior auditory area,0.8751289989680083,mannwhitneyu,1.0,,,False,
