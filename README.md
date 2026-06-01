@@ -1,21 +1,21 @@
 # Functional Specialization Across Mouse Auditory Cortical Subregions
 
-Code and figures for the undergraduate thesis *Functional Specialization Across Mouse Auditory Cortical Subregions* (Zoe Tomlinson, University of Oregon, 2026).
+Code and figures accompanying the undergraduate thesis *Functional Specialization Across Mouse Auditory Cortical Subregions* (Zoe Tomlinson, University of Oregon, 2026).
 
-📄 **Read the thesis:** [`Thesis-Final-Tomlinson.pdf`](Thesis-Final-Tomlinson.pdf)
-🖼️ **Browse the figures:** [`figures/`](figures/)
-💻 **Browse the analysis code:** [`scripts/`](scripts/)
+- Thesis document: [`Thesis-Final-Tomlinson.pdf`](Thesis-Final-Tomlinson.pdf)
+- Rendered figures: [`figures/`](figures/)
+- Analysis code: [`scripts/`](scripts/)
 
 ---
 
-## Summary
+## Overview
 
-Neuropixels recordings from mouse auditory cortex are analyzed across four stimulus categories (pure tones, AM white noise, natural sounds, speech syllables) to ask how different auditory subregions specialize for processing sounds of varying complexity. Each session simultaneously targets up to four subregions — primary (AudP), dorsal (AudD), ventral (AudV), and posterior (AudPo) — with placement confirmed histologically via the Allen Mouse Brain Atlas.
+Neuropixels recordings from mouse auditory cortex are analyzed across four stimulus categories (pure tones, AM white noise, natural sounds, and speech syllables) to characterize how different auditory subregions specialize for processing sounds of varying complexity. Each session simultaneously targets up to four subregions — primary (AudP), dorsal (AudD), ventral (AudV), and posterior (AudPo) — with placement confirmed histologically using the Allen Mouse Brain Atlas.
 
 Two complementary analyses are applied to every subregion × sound × spike-window combination:
 
-- **Encoding (PCA + participation ratio)** — what does the population geometry look like, and how distributed is the representation?
-- **Decoding (ridge regression, pairwise linear SVM)** — how well can stimulus identity be read out from population activity?
+- **Encoding** — Principal Component Analysis and the participation ratio characterize the geometry and effective dimensionality of the population response.
+- **Decoding** — ridge regression and pairwise linear SVM classifiers quantify how reliably stimulus identity can be read out from population activity.
 
 ---
 
@@ -30,7 +30,7 @@ Two complementary analyses are applied to every subregion × sound × spike-wind
 
 **Speech syllables:** defined along two acoustic dimensions — voice onset time (VOT, 0/33/67/100%) and formant transition (FT, 0/33/67/100%) — forming a 12-point grid with corner syllables /ba/, /da/, /pa/, /ta/. AudD is excluded from speech analyses due to insufficient neuron counts for reliable subsampling.
 
-Raw spike data live in HDF databases managed by the Jaramillo Lab. All analyses consume pre-built `.npz` firing-rate arrays produced by `scripts/shared/build_firing_rate_arrays.py`.
+Raw spike data are stored in HDF databases managed by the Jaramillo Lab. All analyses consume pre-built `.npz` firing-rate arrays produced by `scripts/shared/build_firing_rate_arrays.py`.
 
 ---
 
@@ -57,15 +57,15 @@ figures/                          — rendered thesis figures (PNG / SVG / PDF)
                                     encoding:pca/  decoding/linearSVM/  ridge/  etc.
 ```
 
-Each subdirectory of `scripts/` has its own README describing the figures it produces and the statistical pipeline behind them.
+Each subdirectory of `scripts/` contains its own README documenting the figures it produces and the statistical pipeline behind them.
 
 ---
 
-## Methods at a glance
+## Methods
 
 ### Firing-rate windows
 
-Spike counts are converted to firing rates (spikes/sec) over three non-overlapping windows per stimulus type:
+Spike counts are converted to firing rates (spikes/second) over three non-overlapping windows per stimulus type:
 
 | Sound | Onset | Sustained | Offset |
 |---|---|---|---|
@@ -86,34 +86,34 @@ Effective dimensionality is quantified by the **participation ratio** (Recanates
 PR = (Σλ)² / Σλ²
 ```
 
-where λ are the PCA explained-variance eigenvalues. Higher PR = variance more distributed across components. PR is annotated in each PCA panel; full scree plots are in Supplemental Figures S2–S5.
+where λ are the PCA explained-variance eigenvalues. Higher PR indicates more distributed representational variance. PR is annotated in each PCA panel; full scree plots appear in Supplemental Figures S2–S5.
 
-PR values are *not* compared statistically across subregions, since pooling across sessions before PCA leaves no session-level replicates.
+PR values are not compared statistically across subregions, because pooling across sessions before PCA leaves no session-level replicates.
 
-### Decoding: Ridge regression (PT and AM only)
+### Decoding: ridge regression (PT and AM only)
 
-Natural sounds have no inherent acoustic ordering and speech varies along two orthogonal dimensions (VOT, FT), so ridge regression is applied only to PT and AM. Per session:
+Natural sounds have no inherent acoustic ordering, and speech varies along two orthogonal dimensions (VOT, FT) that cannot be collapsed into a single regression target. Ridge regression is therefore applied only to PT and AM. The per-session pipeline is:
 
-1. Session included if ≥ 30 neurons in the target subregion.
-2. Subsample to exactly **30 neurons**, repeat **100×** with different seeds.
-3. Z-score neuron firing rates independently within each training fold.
-4. **5-fold shuffled CV.** Within each training fold, `RidgeCV` chooses α from **200 log-spaced values, 10⁻¹⁰ to 10⁵**.
-5. Targets are log-transformed (matching the log-spaced stimuli).
-6. Score = mean R² across folds, averaged over 100 subsamples.
+1. A session is included if it has at least 30 neurons in the target subregion.
+2. Each retained session is subsampled to exactly 30 neurons, repeated 100 times with different random seeds.
+3. Neuron firing rates are z-scored independently within each training fold.
+4. Shuffled 5-fold cross-validation is applied; within each training fold, `RidgeCV` selects α from 200 log-spaced values between 10⁻¹⁰ and 10⁵.
+5. Regression targets are log-transformed, consistent with the log-spaced stimuli.
+6. Performance is reported as mean R² across the 5 test folds, averaged over the 100 subsamples.
 
-### Decoding: Pairwise linear SVM (all sound types)
+### Decoding: pairwise linear SVM (all sound types)
 
-Population matrices concatenate all sessions and animals; neurons are subsampled to the fixed equal count (278 / 99) with a deterministic seed; firing rates are z-scored. `LinearSVC` regularization **C** is tuned over **20 log-spaced values, 10⁻⁵ to 10⁴** per sound × region × window (Supplemental Figures S9–S12). Pairwise accuracy is estimated by **shuffled leave-one-out cross-validation** (Weese et al., 2025) across all stimulus pairs.
+Population matrices concatenate all sessions and animals along the neuron axis; neurons are subsampled to the fixed equal count (278 / 99) using a deterministic seed, and predictor firing rates are z-scored. `LinearSVC` regularization **C** is tuned over 20 log-spaced values between 10⁻⁵ and 10⁴, fit separately for each sound × region × window (Supplemental Figures S9–S12). Pairwise classification accuracy is estimated using shuffled leave-one-out cross-validation (Weese et al., 2025) across all stimulus pairs.
 
-For natural sounds, pairs are additionally split into **within-category** and **between-category** to test for categorical structure.
+For natural sounds, pairs are additionally labeled as **within-category** or **between-category** to assess categorical organization.
 
 ### Statistics
 
-All pairwise subregion comparisons use **unpaired Mann-Whitney U tests with Bonferroni correction**, annotated with bracket-and-star notation (∗ p < 0.05, ∗∗ p < 0.01, ∗∗∗ p < 0.001).
+All pairwise subregion comparisons use unpaired Mann-Whitney U tests with Bonferroni correction, annotated with bracket-and-star notation (∗ p < 0.05, ∗∗ p < 0.01, ∗∗∗ p < 0.001).
 
 ### Reproducibility
 
-Random subsampling and CV use fixed seeds (`seed = 42` base; deterministically derived from sound type and subregion strings where varied). Shared `.npz` arrays are built once and reused across all analysis modules.
+Random subsampling and cross-validation use fixed seeds (`seed = 42` as the base, derived deterministically from sound type and subregion strings where varied). Shared `.npz` arrays are built once and reused across all analysis modules.
 
 ---
 
@@ -130,7 +130,7 @@ python -m scripts.ridge.run_all             # Figures 7–8, S6–S8
 python -m scripts.discriminability.run_all  # Figures 9–11, S9–S13   (~30–40 min)
 ```
 
-Each `run_all.py` can also be executed individually; the subdirectory README documents what it produces.
+Each `run_all.py` can also be executed individually; the corresponding subdirectory README documents its outputs.
 
 ---
 
