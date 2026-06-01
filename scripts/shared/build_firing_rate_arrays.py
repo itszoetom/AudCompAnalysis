@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from shared import funcs, params
+from scripts.shared import params, funcs
 
 WINDOW_NAMES = params.WINDOW_NAMES
 

@@ -7,7 +7,7 @@ Ridge regression is applied to PT and AM only. Natural sounds have no inherent a
 ## Run
 
 ```bash
-python ridge/run_all.py
+python -m scripts.ridge.run_all
 ```
 
 ## Scripts

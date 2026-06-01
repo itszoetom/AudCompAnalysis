@@ -23,7 +23,7 @@ from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import KFold, LeaveOneOut
 from sklearn.preprocessing import StandardScaler
 
-from shared import params
+from scripts.shared import params
 
 RIDGE_ALPHAS = np.logspace(-10, 5, 200)  # 200 values from 10⁻¹⁰ to 10⁵ (thesis Section 3.3.1)
 RIDGE_N_SPLITS = 5

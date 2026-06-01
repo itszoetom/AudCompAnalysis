@@ -5,7 +5,7 @@ Descriptive figures used in the Methods section of the thesis (Figure 2, Supplem
 ## Run
 
 ```bash
-python methods/run_all.py
+python -m scripts.methods.run_all
 ```
 
 ## Scripts

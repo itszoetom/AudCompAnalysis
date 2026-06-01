@@ -9,10 +9,10 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from pca.plot_umap_population import main as plot_umap  # noqa: E402
-from pca.plot_pca_population import main as plot_population_pca  # noqa: E402
-from pca.plot_pca_population_avgs import main as plot_average_pca  # noqa: E402
-from pca.plot_pca_speech import main as plot_speech_pca  # noqa: E402
+from scripts.pca.plot_umap_population import main as plot_umap  # noqa: E402
+from scripts.pca.plot_pca_population import main as plot_population_pca  # noqa: E402
+from scripts.pca.plot_pca_population_avgs import main as plot_average_pca  # noqa: E402
+from scripts.pca.plot_pca_speech import main as plot_speech_pca  # noqa: E402
 
 
 def main() -> None:

@@ -5,7 +5,7 @@ Population encoding analyses using Principal Component Analysis (PCA) and UMAP, 
 ## Run
 
 ```bash
-python pca/run_all.py
+python -m scripts.pca.run_all
 ```
 
 ## Scripts

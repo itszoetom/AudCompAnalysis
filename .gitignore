@@ -2,8 +2,8 @@
 data/
 archive/
 jaratoolbox/
-figures/
 docs/
+presentation/
 settings.py
 __pycache__/
 .DS_Store

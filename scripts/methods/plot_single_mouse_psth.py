@@ -15,7 +15,7 @@ import numpy as np
 from matplotlib.patches import Patch
 from jaratoolbox import celldatabase, ephyscore, spikesanalysis
 
-from shared import funcs, params
+from scripts.shared import params, funcs
 
 try:
     from tqdm.auto import tqdm
@@ -99,7 +99,7 @@ def window_plot_config(plot_type: str) -> dict[str, np.ndarray | tuple[float, ..
 
 def get_output_dir() -> Path:
     """Return the PSTH figure output directory."""
-    return funcs.get_nested_figure_dir("methods", "psth")
+    return funcs.get_nested_figure_dir("scripts", "psth")
 
 
 def load_session_dataframe(config: dict[str, object]):

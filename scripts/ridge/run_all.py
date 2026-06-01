@@ -9,8 +9,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from ridge.plot_ridge_per_session import main as plot_per_session  # noqa: E402
-from ridge.plot_ridge_population import main as plot_population  # noqa: E402
+from scripts.ridge.plot_ridge_per_session import main as plot_per_session  # noqa: E402
+from scripts.ridge.plot_ridge_population import main as plot_population  # noqa: E402
 
 
 def main() -> None:

@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from discriminability.discriminability_analysis import (  # noqa: E402
+from scripts.discriminability.discriminability_analysis import (  # noqa: E402
     load_method_results,
     plot_heatmaps,
     plot_natural_within_between_boxplots,

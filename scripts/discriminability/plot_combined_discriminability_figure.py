@@ -31,8 +31,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from shared import funcs, params  # noqa: E402
-from discriminability.discriminability_analysis import (  # noqa: E402
+from scripts.shared import params, funcs
+from scripts.discriminability.discriminability_analysis import (  # noqa: E402
     draw_heatmap_grid,
     draw_region_boxplot_panels,
     draw_within_between_panels,

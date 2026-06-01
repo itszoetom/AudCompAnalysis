@@ -39,8 +39,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from shared import funcs, params  # noqa: E402
-from shared.plot_stats import (  # noqa: E402
+from scripts.shared import params, funcs
+from scripts.shared import (  # noqa: E402
     add_pairwise_annotations,
     box_centers,
     pairwise_group_tests,

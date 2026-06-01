@@ -5,7 +5,7 @@ Pairwise stimulus discriminability analyses using linear SVM classifiers, corres
 ## Run
 
 ```bash
-python discriminability/run_all.py
+python -m scripts.discriminability.run_all
 ```
 
 Runtime is approximately 30–40 minutes for the full pipeline.

@@ -26,7 +26,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from shared import funcs, params
+from scripts.shared import params, funcs
 
 # Font sizes for medium-sized multi-panel summary figures
 FONTSIZE_SUPTITLE = 24
@@ -155,7 +155,7 @@ def plot_neuron_count_histograms(
     ax_bar.legend(fontsize=FONTSIZE_LEGEND, frameon=False)
     sns.despine(ax=ax_bar)
 
-    fig.savefig(funcs.get_figure_dir("methods") / filename, dpi=300)
+    fig.savefig(funcs.get_figure_dir("scripts") / filename, dpi=300)
     plt.close(fig)
 
 

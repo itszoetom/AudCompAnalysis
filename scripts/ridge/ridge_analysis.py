@@ -22,8 +22,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from shared import funcs, params  # noqa: E402
-from shared.plot_stats import add_pairwise_annotations, box_centers, pairwise_group_tests  # noqa: E402
+from scripts.shared import params, funcs
+from scripts.shared.plot_stats import add_pairwise_annotations, box_centers, pairwise_group_tests  # noqa: E402
 
 WINDOW_ORDER = params.WINDOW_ORDER
 SOUND_DISPLAY_NAMES = params.SOUND_DISPLAY_NAMES

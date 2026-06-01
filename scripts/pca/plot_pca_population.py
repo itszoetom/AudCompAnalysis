@@ -91,7 +91,7 @@ def save_projection_figure(sound_type: str, results, target_neurons: int) -> Non
         scatter_ax.set_ylim(y_min, y_max)
 
         # Column header: brain area on top row
-        from shared import params as _params
+        from scripts.shared import params as _params
         if col_index == 0:
             region_label = _params.short_names.get(brain_area, brain_area)
             bold_region = r"$\bf{" + region_label + r"}$"
@@ -153,7 +153,7 @@ def save_scree_figure(sound_type: str, results, target_neurons: int) -> None:
         # Column header: brain area on top row
         plot_scree(scree_ax, summary, "", y_max=scree_ymax)
 
-        from shared import params as _params
+        from scripts.shared import params as _params
         if col_index == 0:
             region_label = _params.short_names.get(brain_area, brain_area)
             bold_region = r"$\bf{" + region_label + r"}$"

@@ -26,8 +26,7 @@ _ROOT = Path(__file__).resolve().parents[1]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from shared import params
-from shared.plot_stats import pairwise_group_tests
+from scripts.shared import params
 
 try:
     from tqdm.auto import tqdm

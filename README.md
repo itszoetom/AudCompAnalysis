@@ -1,55 +1,71 @@
 # Functional Specialization Across Mouse Auditory Cortical Subregions
 
-Code for the thesis: *Functional Specialization Across Mouse Auditory Cortical Subregions* (Zoe Tomlinson, University of Oregon, 2026). Publicly available at https://github.com/itszoetom/AudCompAnalysis.
+Code and figures for the undergraduate thesis *Functional Specialization Across Mouse Auditory Cortical Subregions* (Zoe Tomlinson, University of Oregon, 2026).
 
-Neural population recordings from mouse auditory cortex are analyzed across four stimulus categories using encoding (PCA) and decoding (ridge regression, pairwise linear SVM) analyses to characterize how different auditory cortical subregions specialize for processing sounds of varying complexity.
+📄 **Read the thesis:** [`Thesis-Final-Tomlinson.pdf`](Thesis-Final-Tomlinson.pdf)
+🖼️ **Browse the figures:** [`figures/`](figures/)
+💻 **Browse the analysis code:** [`scripts/`](scripts/)
+
+---
+
+## Summary
+
+Neuropixels recordings from mouse auditory cortex are analyzed across four stimulus categories (pure tones, AM white noise, natural sounds, speech syllables) to ask how different auditory subregions specialize for processing sounds of varying complexity. Each session simultaneously targets up to four subregions — primary (AudP), dorsal (AudD), ventral (AudV), and posterior (AudPo) — with placement confirmed histologically via the Allen Mouse Brain Atlas.
+
+Two complementary analyses are applied to every subregion × sound × spike-window combination:
+
+- **Encoding (PCA + participation ratio)** — what does the population geometry look like, and how distributed is the representation?
+- **Decoding (ridge regression, pairwise linear SVM)** — how well can stimulus identity be read out from population activity?
 
 ---
 
 ## Datasets
 
-Two independent cohorts of mice were recorded using Neuropixels 1.0 probes during passive listening. Each session targeted up to four auditory subregions simultaneously: primary (AudP), dorsal (AudD), ventral (AudV), and posterior (AudPo). Probe placement was confirmed histologically using the Allen Mouse Brain Atlas.
-
 | Dataset | Subjects | Stimuli |
 |---|---|---|
-| Simple sounds | feat014–feat019 | 16 PT frequencies (2–40 kHz, log-spaced); 11 AM rates (4–128 Hz, log-spaced) |
+| Simple sounds | feat014–feat019 | 16 pure-tone frequencies (2–40 kHz, log-spaced); 11 AM rates (4–128 Hz, log-spaced) |
 | Complex sounds | feat014–feat019 (natural), feat004–feat010 (speech) | 20 natural sounds (5 categories × 4 exemplars); 12 speech syllables (VOT × FT grid) |
 
 **Natural sound categories:** frogs, crickets, streamside, bubbling, bees (four distinct exemplars each).
 
-**Speech syllables:** defined along two acoustic dimensions — voice onset time (VOT, 0/33/67/100%) and formant transition (FT, 0/33/67/100%) — forming a 12-point grid with corner syllables /ba/, /da/, /pa/, /ta/. AudD was excluded from speech analyses due to insufficient neuron counts for reliable subsampling.
+**Speech syllables:** defined along two acoustic dimensions — voice onset time (VOT, 0/33/67/100%) and formant transition (FT, 0/33/67/100%) — forming a 12-point grid with corner syllables /ba/, /da/, /pa/, /ta/. AudD is excluded from speech analyses due to insufficient neuron counts for reliable subsampling.
 
-Raw spike data are stored in HDF databases managed by the Jaramillo Lab. All analyses consume pre-built `.npz` firing-rate arrays (see `shared/build_firing_rate_arrays.py`).
-
----
-
-## Repository Structure
-
-```
-shared/
-  params.py                   — paths, stimulus metadata, spike window definitions, neuron counts
-  funcs.py                    — data loading, dataset building, subsampling, CV pipelines
-  plot_stats.py               — Mann-Whitney U / Bonferroni boxplot annotation helpers
-  build_firing_rate_arrays.py — converts HDF databases to shared .npz arrays (run once)
-
-methods/                      — Figure 2: single-cell raster and PSTH examples
-pca/                          — Figures 3–6, S2–S5: population PCA scatter and scree plots
-ridge/                        — Figures 7–8, S6–S8: per-session ridge regression decoding
-discriminability/             — Figures 9–11, S9–S13: pairwise linear SVM discriminability
-
-figures/
-  make_c_panel.py             — standalone waveform schematic for Figure 1C
-
-settings.py                   — local jaratoolbox path configuration (not analysis code)
-docs/
-  Tomlinson_UOThesis.pdf      — thesis document
-```
+Raw spike data live in HDF databases managed by the Jaramillo Lab. All analyses consume pre-built `.npz` firing-rate arrays produced by `scripts/shared/build_firing_rate_arrays.py`.
 
 ---
 
-## 3.1 Firing Rate Calculation
+## Repository Layout
 
-Spike counts were divided by window duration to give mean firing rates in spikes/second. Three non-overlapping analysis windows are defined per stimulus type to capture distinct phases of the neural response:
+```
+Thesis-Final-Tomlinson.pdf        — the full thesis document
+
+scripts/
+  shared/
+    params.py                     — paths, stimulus metadata, spike windows, neuron counts
+    funcs.py                      — data loading, dataset building, subsampling, CV pipelines
+    plot_stats.py                 — Mann-Whitney U / Bonferroni boxplot annotation helpers
+    build_firing_rate_arrays.py   — converts HDF databases to shared .npz arrays (run once)
+  methods/                        — Figure 2, S1: single-cell raster + PSTH examples, dataset summaries
+  pca/                            — Figures 3–6, S2–S5: population PCA, UMAP, participation ratio
+  ridge/                          — Figures 7–8, S6–S8: per-session ridge regression decoding
+  discriminability/               — Figures 9–11, S9–S13: pairwise linear SVM (+ Pearson, LDA)
+
+figures/                          — rendered thesis figures (PNG / SVG / PDF)
+  drafts/                         — schematic panels and exploratory drafts (e.g. Figure 1C waveforms)
+  decoding/                       — top-level discriminability summary figures
+  figures/                        — figures grouped by analysis stage:
+                                    encoding:pca/  decoding/linearSVM/  ridge/  etc.
+```
+
+Each subdirectory of `scripts/` has its own README describing the figures it produces and the statistical pipeline behind them.
+
+---
+
+## Methods at a glance
+
+### Firing-rate windows
+
+Spike counts are converted to firing rates (spikes/sec) over three non-overlapping windows per stimulus type:
 
 | Sound | Onset | Sustained | Offset |
 |---|---|---|---|
@@ -58,90 +74,79 @@ Spike counts were divided by window duration to give mean firing rates in spikes
 | Speech syllables | 0–200 ms | 200–500 ms | 500–700 ms |
 | Natural sounds | 0–500 ms | 1000–4000 ms | 4000–4500 ms |
 
-All three windows are analyzed for every sound type and subregion combination.
+All three windows are analyzed for every sound × subregion combination.
 
----
+### Encoding: PCA + Participation Ratio
 
-## 3.2 Encoding: PCA and Participation Ratio
+Neuron-by-trial matrices from all sessions and animals are concatenated along the neuron axis, then subsampled to a fixed count per subregion (**278 neurons** for non-speech, **99 neurons** for speech) so region comparisons are not confounded by population size. PCA is applied separately for each sound × subregion × window with per-neuron mean centering.
 
-For all encoding analyses, neuron-by-trial matrices from all sessions and animals were concatenated along the neuron axis to form a single population matrix per subregion and stimulus type. Neurons were randomly subsampled to a fixed count before analysis to ensure region comparisons are not confounded by population size:
-
-- **Non-speech (PT, AM, natural sounds):** 278 neurons per subregion
-- **Speech syllables:** 99 neurons per subregion
-
-### Principal Component Analysis
-
-PCA was applied separately for each combination of sound type, brain subregion, and spike window. Input matrices were **mean-centered per neuron** (each neuron's across-trial mean subtracted) before decomposition. Figures show all trials projected onto the first two principal components, with points colored by stimulus identity.
-
-### Participation Ratio
-
-Effective dimensionality was quantified using the **participation ratio (PR)**, computed from the PCA explained-variance spectrum (Recanatesi et al., 2022):
+Effective dimensionality is quantified by the **participation ratio** (Recanatesi et al., 2022):
 
 ```
 PR = (Σλ)² / Σλ²
 ```
 
-where λ are the explained-variance eigenvalues from PCA. PR ranges from 1 (all variance concentrated in one component) to n (perfectly uniform spectrum across all components). Higher PR indicates more distributed representational variance across the population. PR is annotated in each PCA panel; scree plots showing the full variance spectrum are provided in Supplemental Figures S2–S5.
+where λ are the PCA explained-variance eigenvalues. Higher PR = variance more distributed across components. PR is annotated in each PCA panel; full scree plots are in Supplemental Figures S2–S5.
 
-**Statistical note:** PR values cannot be statistically compared across subregions because data were pooled across sessions before PCA — there are no session-level replicates to test against.
+PR values are *not* compared statistically across subregions, since pooling across sessions before PCA leaves no session-level replicates.
 
----
+### Decoding: Ridge regression (PT and AM only)
 
-## 3.3 Decoding
+Natural sounds have no inherent acoustic ordering and speech varies along two orthogonal dimensions (VOT, FT), so ridge regression is applied only to PT and AM. Per session:
 
-### 3.3.1 Ridge Regression (Figures 7–8, S6–S8)
+1. Session included if ≥ 30 neurons in the target subregion.
+2. Subsample to exactly **30 neurons**, repeat **100×** with different seeds.
+3. Z-score neuron firing rates independently within each training fold.
+4. **5-fold shuffled CV.** Within each training fold, `RidgeCV` chooses α from **200 log-spaced values, 10⁻¹⁰ to 10⁵**.
+5. Targets are log-transformed (matching the log-spaced stimuli).
+6. Score = mean R² across folds, averaged over 100 subsamples.
 
-Ridge regression was applied to **PT and AM only**. Natural sounds have no inherent acoustic ordering (arbitrary ranking would be meaningless), and speech stimuli vary along two independent orthogonal dimensions (VOT and FT) that cannot be collapsed into a single regression target. Pairwise discriminability (Section 3.3.2) was used for those sound types instead.
+### Decoding: Pairwise linear SVM (all sound types)
 
-Ridge regression was applied **at the session level**, independently for each subregion and sound type. L2 regularization shrinks coefficients toward zero without zeroing any out, preserving contributions from the full population and reducing overfitting in high-dimensional correlated data.
+Population matrices concatenate all sessions and animals; neurons are subsampled to the fixed equal count (278 / 99) with a deterministic seed; firing rates are z-scored. `LinearSVC` regularization **C** is tuned over **20 log-spaced values, 10⁻⁵ to 10⁴** per sound × region × window (Supplemental Figures S9–S12). Pairwise accuracy is estimated by **shuffled leave-one-out cross-validation** (Weese et al., 2025) across all stimulus pairs.
 
-**Pipeline:**
-1. A session is included if it has ≥ 30 neurons in the target subregion.
-2. Each retained session is subsampled to exactly **30 neurons**, repeated **100 times** with different random seeds to average out subsampling variance.
-3. All neuron firing rates are **z-scored independently** within each training fold.
-4. Each subsample is evaluated with **shuffled 5-fold cross-validation**.
-5. Within each training fold, `RidgeCV` selects the best regularization strength from **200 logarithmically spaced α values from 10⁻¹⁰ to 10⁵** (`np.logspace(-10, 5, 200)`).
-6. Regression targets are **log-transformed** before fitting, consistent with the logarithmic spacing of PT frequencies and AM modulation rates.
-7. Performance is reported as **mean R² across the 5 test folds, averaged over 100 subsamples**.
+For natural sounds, pairs are additionally split into **within-category** and **between-category** to test for categorical structure.
 
-### 3.3.2 Discriminability: Pairwise Linear SVM (Figures 9–11, S9–S13)
+### Statistics
 
-Discriminability quantifies how well population responses distinguish each pair of stimuli. Linear SVM classifiers were applied to population matrices concatenating neurons across all sessions and animals.
+All pairwise subregion comparisons use **unpaired Mann-Whitney U tests with Bonferroni correction**, annotated with bracket-and-star notation (∗ p < 0.05, ∗∗ p < 0.01, ∗∗∗ p < 0.001).
 
-**Pipeline:**
-1. Population matrices per subregion and window are built by concatenating all sessions and animals along the neuron axis.
-2. Neurons are randomly subsampled to a fixed equal count (**278 for non-speech, 99 for speech**) using a deterministic seed.
-3. All predictor firing rates are **z-scored** before classification.
-4. The regularization hyperparameter **C is tuned over a grid of 20 logarithmically spaced values from 10⁻⁵ to 10⁴** (`np.logspace(-5, 4, 20)`), fit separately for each sound type × subregion × window (Supplemental Figures S9–S12).
-5. Pairwise classification accuracy is estimated using **shuffled leave-one-out cross-validation** (Weese et al., 2025).
-6. All stimulus pairs are evaluated; mean accuracy across pairs is the reported per-condition score.
+### Reproducibility
 
-For natural sounds, stimulus pairs are additionally labeled as **Within-category** (both from the same environmental category) or **Between-category** (from different categories) to assess categorical organization.
-
-### 3.3.3 Statistical Analysis
-
-All pairwise subregion comparisons within each sound type and spike window use **unpaired Mann-Whitney U tests with Bonferroni correction** for multiple comparisons. Significance is annotated with bracket-and-star notation (∗ p < 0.05, ∗∗ p < 0.01, ∗∗∗ p < 0.001). All neurons were subsampled to the fixed equal count before computing any summary statistic, ensuring that distributional differences reflect neural representation rather than population size.
+Random subsampling and CV use fixed seeds (`seed = 42` base; deterministically derived from sound type and subregion strings where varied). Shared `.npz` arrays are built once and reused across all analysis modules.
 
 ---
 
-## 3.5 Reproducibility
-
-All analyses were implemented in Python. Random subsampling and cross-validation procedures use fixed or deterministic seeds (`seed = 42` base, derived deterministically from sound type and brain area strings where varied). The shared `.npz` firing-rate arrays are built once by `shared/build_firing_rate_arrays.py` and reused across all analysis modules.
-
----
-
-## Run Order
+## Reproducing the figures
 
 ```bash
-python shared/build_firing_rate_arrays.py   # build .npz arrays from HDF databases (run once)
-python methods/run_all.py                   # Figure 2
-python pca/run_all.py                       # Figures 3–6, S2–S5
-python ridge/run_all.py                     # Figures 7–8, S6–S8
-python discriminability/run_all.py          # Figures 9–11, S9–S13  (~30–40 min)
+# 1. Build shared firing-rate arrays (run once; needs raw HDF databases + jaratoolbox).
+python -m scripts.shared.build_firing_rate_arrays
+
+# 2. Generate figures by analysis stage.
+python -m scripts.methods.run_all           # Figure 2, S1
+python -m scripts.pca.run_all               # Figures 3–6, S2–S5
+python -m scripts.ridge.run_all             # Figures 7–8, S6–S8
+python -m scripts.discriminability.run_all  # Figures 9–11, S9–S13   (~30–40 min)
 ```
+
+Each `run_all.py` can also be executed individually; the subdirectory README documents what it produces.
 
 ---
 
 ## Environment
 
-Requires Python ≥ 3.10, a local `jaratoolbox` copy (bundled under `jaratoolbox/`), and the HDF databases referenced in `shared/params.py`. Figures are written to `params.figSavePath`; `.npz` arrays go to `params.dbSavePath`. Neither path is committed to this repository.
+- Python ≥ 3.10
+- A local copy of `jaratoolbox` (Jaramillo Lab toolbox)
+- HDF databases at the paths configured in `scripts/shared/params.py`
+- Output paths: figures → `params.figSavePath`, arrays → `params.dbSavePath` (neither is committed)
+
+---
+
+## Citation
+
+If you use or reference this work, please cite:
+
+> Tomlinson, Z. (2026). *Functional Specialization Across Mouse Auditory Cortical Subregions* (Undergraduate Thesis). University of Oregon.
+
+Recordings were collected by the Jaramillo Lab (University of Oregon).
