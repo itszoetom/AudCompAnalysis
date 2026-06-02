@@ -2,18 +2,18 @@
 
 Code and figures accompanying the undergraduate thesis *Functional Specialization Across Mouse Auditory Cortical Subregions* (Zoe Tomlinson, University of Oregon, 2026).
 
-- Thesis document: [`Thesis-Final-Tomlinson.pdf`](Thesis-Final-Tomlinson.pdf)
-- Rendered figures: [`figures/`](figures/)
-- Analysis code: [`scripts/`](scripts/)
+- [`Thesis-Final-Tomlinson.pdf`](Thesis-Final-Tomlinson.pdf): the thesis.
+- [`figures/`](figures/): rendered figures.
+- [`scripts/`](scripts/): analysis code.
 
 ## Overview
 
-Neuropixels recordings from mouse auditory cortex are analyzed across four stimulus categories — pure tones (PT), AM white noise (AM), natural sounds, and speech syllables — to characterize how different auditory subregions specialize for processing sounds of varying complexity. Each session simultaneously targets up to four subregions (primary AudP, dorsal AudD, ventral AudV, posterior AudPo), with placement confirmed histologically against the Allen Mouse Brain Atlas.
+Neuropixels recordings from mouse auditory cortex are analyzed across four stimulus categories (pure tones, AM white noise, natural sounds, and speech syllables) to characterize how different auditory subregions specialize for processing sounds of varying complexity. Each session simultaneously targets up to four subregions (primary AudP, dorsal AudD, ventral AudV, posterior AudPo), with placement confirmed histologically against the Allen Mouse Brain Atlas.
 
 Two complementary analyses are applied to every subregion × sound × spike-window combination:
 
-- **Encoding** — PCA and the participation ratio characterize the geometry and effective dimensionality of the population response.
-- **Decoding** — ridge regression (PT, AM) and pairwise linear SVM (all sounds) quantify how reliably stimulus identity can be read out from population activity.
+- **Encoding.** PCA and the participation ratio characterize the geometry and effective dimensionality of the population response.
+- **Decoding.** Ridge regression (PT, AM) and pairwise linear SVM (all sounds) quantify how reliably stimulus identity can be read out from population activity.
 
 Statistical comparisons between subregions use unpaired Mann-Whitney U tests with Bonferroni correction. Full method details are in the thesis PDF; per-module READMEs in `scripts/` summarize each pipeline.
 
@@ -29,14 +29,14 @@ Neurons are subsampled to a fixed equal count per subregion before all populatio
 ## Repository Layout
 
 ```
-Thesis-Final-Tomlinson.pdf   — full thesis document
-scripts/                     — analysis code (one subdirectory per analysis; each has its own README)
-  shared/                    — paths, dataset builders, subsampling, CV helpers, stats utilities
-  methods/                   — Figure 2, S1
-  pca/                       — Figures 3–6, S2–S5
-  ridge/                     — Figures 7–8, S6–S8
-  discriminability/          — Figures 9–11, S9–S13
-figures/                     — rendered figures, grouped by analysis stage (see figures/README.md)
+Thesis-Final-Tomlinson.pdf   the thesis
+scripts/                     analysis code (one subdirectory per analysis; each has its own README)
+  shared/                    paths, dataset builders, subsampling, CV helpers, stats utilities
+  methods/                   Figure 2, S1
+  pca/                       Figures 3–6, S2–S5
+  ridge/                     Figures 7–8, S6–S8
+  discriminability/          Figures 9–11, S9–S13
+figures/                     rendered figures, grouped by analysis stage (see figures/README.md)
 ```
 
 ## Reproducing the figures
@@ -57,10 +57,6 @@ python -m scripts.discriminability.run_all  # Figures 9–11, S9–S13   (~30–
 - Python ≥ 3.10
 - A local copy of `jaratoolbox` (Jaramillo Lab toolbox)
 - HDF databases at the paths configured in `scripts/shared/params.py`
-- Output paths: figures → `params.figSavePath`, arrays → `params.dbSavePath` (neither is committed)
-
-## Citation
-
-> Tomlinson, Z. (2026). *Functional Specialization Across Mouse Auditory Cortical Subregions* (Undergraduate Thesis). University of Oregon.
+- Output paths: figures go to `params.figSavePath`, arrays go to `params.dbSavePath` (neither is committed)
 
 Recordings were collected by the Jaramillo Lab (University of Oregon).

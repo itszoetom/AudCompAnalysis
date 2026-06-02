@@ -3,7 +3,7 @@
 Rendered figures from the thesis, grouped by analysis stage. Each subdirectory has its own README where useful.
 
 ```
-methods/      Figure 1 (experimental setup), single-cell raster + PSTH, atlas reference
+methods/      Figure 1 (experimental setup), single-cell raster and PSTH, atlas reference
 encoding/pca/ PCA projections and scree plots (Figures 3–6, S2–S5)
 decoding/
   ridge/      Per-session ridge regression boxplots and tuning curves (Figures 7–8, S6–S8)

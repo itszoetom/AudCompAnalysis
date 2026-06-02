@@ -10,8 +10,8 @@ python -m scripts.methods.run_all
 
 ## Scripts
 
-- `plot_data_info.py` → **Supplemental Figure S1.** Histogram of neurons per session per subregion, for both the non-speech and speech datasets.
-- `plot_single_mouse_psth.py` → **Figure 2.** Example single-unit rasters and PSTHs for one representative neuron in each stimulus category. Trials colored by stimulus identity; PSTHs use 10 ms bins with 5-bin boxcar smoothing; shaded bands mark the onset (yellow), sustained (teal), and offset (orange) analysis windows.
+- `plot_data_info.py` (Supplemental Figure S1): histogram of neurons per session per subregion, for both the non-speech and speech datasets.
+- `plot_single_mouse_psth.py` (Figure 2): example single-unit rasters and PSTHs for one representative neuron in each stimulus category. Trials colored by stimulus identity; PSTHs use 10 ms bins with 5-bin boxcar smoothing; shaded bands mark the onset (yellow), sustained (teal), and offset (orange) analysis windows.
 
 ## Output
 

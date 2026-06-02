@@ -10,11 +10,11 @@ python -m scripts.pca.run_all
 
 ## Scripts
 
-- `plot_pca_population.py` → **Figures 3–6.** 2D PCA projections per sound type, one panel grid per figure (rows = subregions, columns = spike windows). Each point is one trial, colored by stimulus identity; participation ratio (PR) is annotated per panel.
-- `plot_pca_population_avgs.py` — same layout but with trials averaged within each stimulus identity before PCA (exploratory).
-- `plot_pca_speech.py` — speech-only PCA projections colored separately by FT and VOT.
-- `plot_umap_population.py` — UMAP projections in the same grid layout as PCA.
-- `pca_analysis.py` — shared helpers (PCA fit, participation ratio, scree, colorbar utilities).
+- `plot_pca_population.py` (Figures 3–6): 2D PCA projections per sound type, one panel grid per figure (rows are subregions, columns are spike windows). Each point is one trial, colored by stimulus identity; participation ratio (PR) is annotated per panel.
+- `plot_pca_population_avgs.py`: same layout but with trials averaged within each stimulus identity before PCA (exploratory).
+- `plot_pca_speech.py`: speech-only PCA projections colored separately by FT and VOT.
+- `plot_umap_population.py`: UMAP projections in the same grid layout as PCA.
+- `pca_analysis.py`: shared helpers (PCA fit, participation ratio, scree, colorbar utilities).
 
 ## Pipeline
 
